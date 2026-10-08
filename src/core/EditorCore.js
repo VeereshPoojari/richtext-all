@@ -38,6 +38,7 @@ export class EditorCore {
       ? [...opts.users]
       : [
           this.options.user,
+          { id: 'usr-veeresh', name: 'Veeresh Poojari (Author)', color: '#6366f1' },
           { id: 'usr-sarah', name: 'Sarah (Design Lead)', color: '#ec4899' },
           { id: 'usr-alex', name: 'Alex (Tech Lead)', color: '#059669' }
         ];

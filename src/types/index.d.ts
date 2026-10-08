@@ -28,12 +28,40 @@ export interface SyncOptions {
   onStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void;
 }
 
+export type GutterPosition = 'right' | 'left' | 'both';
+
+export interface ToolbarDefaults {
+  style?: 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'blockquote' | 'codeBlock';
+  fontSize?: string | number;
+  lineHeight?: string | number;
+  color?: string;
+  highlight?: string;
+  layout?: PageLayout;
+  margin?: GutterPosition;
+  gutterPosition?: GutterPosition;
+  mode?: 'editing' | 'viewing' | 'suggesting' | 'comments' | 'version-history' | 'version-comparison';
+  tableRows?: number;
+  tableCols?: number;
+}
+
+export interface ToolbarOptions {
+  visible?: boolean;
+  sticky?: boolean;
+  defaults?: ToolbarDefaults;
+  show?: Record<string, boolean>;
+  hiddenItems?: string[];
+  hidden?: string[];
+  items?: string[];
+}
+
 export interface RichEditorOptions {
   initialContent?: string;
   placeholder?: string;
   pageLayout?: PageLayout;
+  gutterPosition?: GutterPosition;
   readOnly?: boolean;
-  toolbar?: boolean;
+  toolbar?: boolean | ToolbarOptions;
+  toolbarDefaults?: ToolbarDefaults;
   bubbleMenu?: boolean;
   slashCommand?: boolean;
   splitView?: boolean;
@@ -67,9 +95,24 @@ export declare class EditorCore {
 }
 
 export declare class Toolbar {
-  core: EditorCore;
-  constructor(core: EditorCore, options?: any);
-  mount(): void;
+  editor: any;
+  element: HTMLElement | null;
+  visible: boolean;
+  defaults: ToolbarDefaults;
+  constructor(editor: any, options?: ToolbarOptions);
+  mount(containerEl?: HTMLElement): void;
+  show(): this;
+  hide(): this;
+  toggle(forceState?: boolean): this;
+  isVisible(): boolean;
+  showItem(key: string): this;
+  hideItem(key: string): this;
+  toggleItem(key: string, forceState?: boolean): this;
+  isItemVisible(key: string): boolean;
+  setItemVisibility(key: string, visible: boolean): this;
+  setItemsVisibility(config?: Record<string, boolean>): this;
+  getDefaults(): ToolbarDefaults;
+  setDefaults(newDefaults?: Partial<ToolbarDefaults>): ToolbarDefaults;
   destroy(): void;
 }
 
@@ -116,6 +159,7 @@ export declare class SyncAdapter {
 
 export declare class RichEditor {
   core: EditorCore;
+  toolbar: Toolbar | null;
   constructor(target: string | HTMLElement, options?: RichEditorOptions);
   getHTML(): string;
   setHTML(html: string): void;
@@ -125,6 +169,21 @@ export declare class RichEditor {
   getText(): string;
   getStats(): EditorStats;
   setLayout(layout: PageLayout): void;
+  setGutterPosition(position: GutterPosition): string;
+  getGutterPosition(): GutterPosition;
+  toggleGutterPosition(): GutterPosition;
+  showToolbar(): this;
+  hideToolbar(): this;
+  toggleToolbar(forceVisible?: boolean): this;
+  isToolbarVisible(): boolean;
+  showToolbarItem(key: string): this;
+  hideToolbarItem(key: string): this;
+  toggleToolbarItem(key: string, forceVisible?: boolean): this;
+  isToolbarItemVisible(key: string): boolean;
+  setToolbarItemVisibility(key: string, visible: boolean): this;
+  setToolbarItemsVisibility(itemsMap: Record<string, boolean>): this;
+  setToolbarDefaults(defaults: Partial<ToolbarDefaults>): ToolbarDefaults;
+  getToolbarDefaults(): ToolbarDefaults;
   toggleSplitView(): void;
   exportDOCX(filename?: string): void;
   exportMarkdown(filename?: string): void;

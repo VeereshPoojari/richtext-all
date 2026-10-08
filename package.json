@@ -44,6 +44,8 @@
   "scripts": {
     "clean": "node -e \"const fs = require('fs'); if (fs.existsSync('dist')) fs.rmSync('dist', { recursive: true, force: true });\"",
     "build": "rollup -c && node scripts/copyTypes.mjs",
+    "prepublishOnly": "npm run build && npm test",
+    "collab": "node scripts/collab-server.mjs",
     "dev": "rollup -c -w",
     "test": "node tests/editor.test.js"
   },

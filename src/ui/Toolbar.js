@@ -48,12 +48,13 @@ export const ITEM_ALIASES = {
 export class Toolbar {
   constructor(editor, options = {}) {
     this.editor = editor;
+    const defaultHidden = options.show?.users === true ? [] : ['users'];
     this.options = {
       sticky: true,
       visible: true,
       defaults: {},
       show: {},
-      hiddenItems: [],
+      hiddenItems: [...defaultHidden, ...(options.hiddenItems || [])],
       ...options
     };
 

@@ -32,7 +32,7 @@ export class RichEditor {
       slashCommand: true,
       splitView: false,
       statusBar: true,
-      collab: null,          // { serverUrl, roomId, user }
+      collab: true,          // true, { serverUrl, roomId, user }, or false to disable
       sync: null,            // { endpoint, autoSave, onSave }
       onChange: null,
       onSelectionChange: null,
@@ -75,10 +75,15 @@ export class RichEditor {
       this.core.setHTML(this.options.initialContent);
     }
 
-    // 2. Collab Presence (optional)
-    if (this.options.collab) {
+    // 2. Collab Presence & Real-Time Sync (Cross-tab & WebSocket)
+    if (this.options.collab !== false) {
+      const collabConfig = typeof this.options.collab === 'object' && this.options.collab !== null
+        ? this.options.collab
+        : {};
+
       this.collab = new CollabEngine(this.core, {
-        ...this.options.collab,
+        roomId: 'default-doc-room',
+        ...collabConfig,
         user: this.core.options.user
       });
       this.collab.mount(this.container);
@@ -404,6 +409,18 @@ export class RichEditor {
     return user;
   }
 
+  promptAddUser() {
+    return this.core?.promptAddUser();
+  }
+
+  on(event, callback) {
+    return this.core?.on(event, callback);
+  }
+
+  emit(event, payload) {
+    return this.core?.emit(event, payload);
+  }
+
   // Annotation Cards Gutter Space Management (Left or Right Margin)
   setGutterPosition(position) {
     return this.core?.setGutterPosition(position);
@@ -539,6 +556,23 @@ export class RichEditor {
   exportText(filename = 'document.txt') {
     const sync = this.sync || new SyncAdapter(this.core);
     sync.exportText(filename);
+  }
+
+  // Real-Time Collaboration Controls
+  disconnectCollab() {
+    if (this.collab) {
+      this.collab.disconnect();
+    }
+  }
+
+  connectCollab(serverUrl) {
+    if (this.collab) {
+      this.collab.connect(serverUrl);
+    }
+  }
+
+  isCollabConnected() {
+    return this.collab ? Boolean(this.collab.isConnected) : false;
   }
 
   destroy() {

@@ -95,6 +95,11 @@ Or via CDN:
 - **Dynamic Runtime Controls**: Freely call `editor.hideToolbarItem(key)`, `editor.showToolbarItem(key)`, `editor.toggleToolbarItem(key)`, or `editor.setToolbarDefaults(defaults)`.
 - **Automatic Group & Divider Management**: Dividers and empty groups cleanly auto-collapse when child items are hidden.
 
+### 8. ⚡ Zero-Config Real-Time Multiplayer Collaboration
+- **Zero-Server Multi-Tab Sync (`BroadcastChannel`)**: Open 2, 3, or 5 tabs or windows in your browser—all edits, typing tooltips, and live colored cursors sync **instantly with zero configuration and zero backend needed**.
+- **Cross-Browser & Network Sync (`WebSocket`)**: Seamlessly sync across different browsers (Chrome, Firefox, Edge, Safari) and different computers on your network by passing `collab: { serverUrl: 'ws://localhost:1234' }`.
+- **Built-in Zero-Dependency Relay Server**: Launch the included WebSocket server in one command with `npm run collab` (pure Node.js standard library, 0 external npm dependencies).
+
 ---
 
 ## 🛠️ Framework Integration
@@ -229,6 +234,7 @@ export class DocumentViewComponent {
 | `toolbarDefaults` | `object` | `{}` | Shortcut for default values (`style`, `fontSize`, `lineHeight`, etc.). |
 | `user` | `{ id, name, color }` | Author | Active user credentials and highlight color. |
 | `users` | `Array<{ id, name, color }>` | Default list | Pre-populated team collaborators. |
+| `collab` | `boolean \| object` | `true` | Real-time collaboration: `{ roomId, serverUrl, user }` (`BroadcastChannel` across tabs + WebSocket over network). |
 | `placeholder` | `string` | `'Write something...'` | Watermark text displayed on empty pages. |
 | `readOnly` | `boolean` | `false` | Locks document editing. |
 | `autoFocus` | `boolean` | `false` | Focuses the first page on load. |
@@ -261,6 +267,39 @@ const editor = new RichEditor('#editor', {
       upload: false,
       table: false
     }
+  }
+});
+```
+
+### ⚡ Real-Time Collaboration Setup
+
+#### 1. Zero-Config Multi-Tab Sync (No server needed)
+Open multiple browser tabs or windows—they automatically sync via `BroadcastChannel`:
+```javascript
+const editor = new RichEditor('#editor', {
+  collab: {
+    roomId: 'project-proposal-room',
+    user: { id: 'usr-1', name: 'Alice', color: '#6366f1' }
+  }
+});
+```
+
+#### 2. Cross-Browser & Multi-Device Sync (WebSocket)
+To sync between different browsers (Chrome ↔ Firefox ↔ Edge) or different devices on your network:
+
+1. Start the included zero-dependency WebSocket relay server:
+```bash
+npm run collab
+# Server listening on ws://localhost:1234
+```
+
+2. Point your editor to the server:
+```javascript
+const editor = new RichEditor('#editor', {
+  collab: {
+    serverUrl: 'ws://localhost:1234',
+    roomId: 'team-design-room',
+    user: { id: 'usr-2', name: 'Bob', color: '#ec4899' }
   }
 });
 ```

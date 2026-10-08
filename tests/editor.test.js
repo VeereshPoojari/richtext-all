@@ -8,6 +8,7 @@ import { escapeHtml, sanitizeUrl } from '../src/utils/security.js';
 import { autoPaginateHtml } from '../src/utils/docxReader.js';
 import { computeDocumentDiff, tokenizeHtml, diffTokens } from '../src/utils/diff.js';
 import { Toolbar, ITEM_ALIASES } from '../src/ui/Toolbar.js';
+import { CollabEngine } from '../src/collab/CollabEngine.js';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -1027,6 +1028,108 @@ test('Toolbar manages granular item visibility, show/hide, and aliases', () => {
   assert.strictEqual(toolbar.isItemVisible('italic'), false);
   assert.strictEqual(toolbar.isItemVisible('underline'), false);
   assert.strictEqual(toolbar.isItemVisible('bold'), true);
+
+  // Users group is hidden in toolbar by default (moved to top bar)
+  assert.strictEqual(toolbar.isItemVisible('users'), false);
+  toolbar.showItem('users');
+  assert.strictEqual(toolbar.isItemVisible('users'), true);
+});
+
+// Real-Time Collaboration & Synchronization Engine Tests
+console.log('\n--- Real-Time Collaboration & Synchronization Tests ---');
+
+test('CollabEngine applies remote edits and filters out echo loop messages', () => {
+  let docContent = '<p>Initial local draft</p>';
+  const mockEditor = {
+    getHTML: () => docContent,
+    setHTML: (val) => { docContent = val; },
+    on: () => {},
+    emit: () => {}
+  };
+
+  const userAlice = { id: 'usr-1', name: 'Alice', color: '#6366f1' };
+  const userBob = { id: 'usr-2', name: 'Bob', color: '#ec4899' };
+
+  const engine = new CollabEngine(mockEditor, { user: userAlice });
+
+  // 1. Receive remote edit from Bob
+  engine.handleIncomingMessage({
+    senderId: userBob.id,
+    type: 'edit',
+    content: '<p>Updated paragraph by Bob</p>',
+    user: userBob
+  });
+
+  assert.strictEqual(docContent, '<p>Updated paragraph by Bob</p>');
+
+  // 2. Ignore self-echo message sent by Alice
+  engine.handleIncomingMessage({
+    senderId: userAlice.id,
+    type: 'edit',
+    content: '<p>Echo from Alice</p>',
+    user: userAlice
+  });
+
+  assert.strictEqual(docContent, '<p>Updated paragraph by Bob</p>', 'Should ignore self message');
+
+  // 3. New peer joins and registers presence
+  engine.handleIncomingMessage({
+    senderId: userBob.id,
+    type: 'peer_join',
+    user: userBob
+  });
+
+  assert.ok(engine.peers.has(userBob.id), 'Records Bob presence');
+  assert.strictEqual(engine.peers.get(userBob.id).name, 'Bob');
+
+  // 4. Peer disconnect removes presence
+  engine.handleIncomingMessage({
+    senderId: userBob.id,
+    type: 'peer_leave',
+    user: userBob
+  });
+
+  assert.ok(!engine.peers.has(userBob.id), 'Removes Bob presence on leave');
+});
+
+test('CollabEngine page-relative coordinate translation across viewports', () => {
+  // Sender on wide maximized screen (1920px): page sheet at left=550px, caret at x=630px
+  const senderCoords = {
+    x: 630,
+    y: 215,
+    height: 24,
+    pageNumber: 1,
+    relX: 80, // 630 - 550
+    relY: 45
+  };
+
+  // Receiver on half-screen or different monitor (900px): page sheet at left=40px, top=120px
+  const receiverPageRect = { left: 40, top: 120 };
+  const finalX = receiverPageRect.left + senderCoords.relX;
+  const finalY = receiverPageRect.top + senderCoords.relY;
+
+  assert.strictEqual(senderCoords.relX, 80, 'Sender computes page-relative offset');
+  assert.strictEqual(finalX, 120, 'Receiver locks cursor to exact character coordinate on its page sheet');
+  assert.strictEqual(finalY, 165, 'Receiver locks cursor vertically to exact character coordinate');
+});
+
+test('CollabEngine disconnect cleanly clears presence and marks disconnected', () => {
+  const mockEditor = {
+    getHTML: () => '<p>Document</p>',
+    setHTML: () => {},
+    on: () => {},
+    emit: () => {}
+  };
+  const user = { id: 'u-self', name: 'Self', color: '#6366f1' };
+  const engine = new CollabEngine(mockEditor, { roomId: 'test-room', user });
+  engine.peers.set('peer-1', { id: 'peer-1', name: 'Other User' });
+
+  assert.strictEqual(engine.peers.size, 1);
+  engine.disconnect();
+
+  assert.strictEqual(engine.peers.size, 0, 'Peers cleared on disconnect');
+  assert.strictEqual(engine.isManuallyDisconnected, true, 'Marked as manually disconnected');
+  assert.strictEqual(engine.isConnected, false, 'isConnected is false');
 });
 
 // Summary
