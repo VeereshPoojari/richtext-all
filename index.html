@@ -3,36 +3,1037 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0; url=./playground/index.html">
-  <title>richtext-all | Interactive Playground Demo</title>
-  <script>
-    // Immediate transparent redirect preserving any query parameters or hash
-    const target = './playground/index.html' + window.location.search + window.location.hash;
-    window.location.replace(target);
-  </script>
+  <title>richtext-all | Interactive Playground & Live Collaboration Demo</title>
+  <link rel="stylesheet" href="./src/styles/richtext-all.css">
   <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      --rta-primary: #6366f1;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+    }
+
+    /* Top Navigation Banner */
+    .hero-header {
+      background: var(--bg-gradient);
+      color: #ffffff;
+      padding: 20px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .hero-top {
       display: flex;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      background: #0f172a;
-      color: #e2e8f0;
-      text-align: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
     }
-    a {
-      color: #818cf8;
-      text-decoration: none;
+
+    .hero-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hero-title h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .badge-pill {
+      background: rgba(99, 102, 241, 0.25);
+      border: 1px solid #818cf8;
+      color: #c7d2fe;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
       font-weight: 600;
+    }
+
+    .badge-success {
+      border-color: #34d399;
+      color: #a7f3d0;
+      background: rgba(16, 185, 129, 0.2);
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      background: #ffffff;
+      color: #0f172a;
+      border: none;
+      padding: 7px 13px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-action:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+
+    .btn-action-primary {
+      background: #6366f1;
+      color: #ffffff;
+    }
+
+    .btn-action-primary:hover {
+      background: #4f46e5;
+    }
+
+    .hero-desc {
+      font-size: 13.5px;
+      color: #94a3b8;
+      margin: 0;
+      max-width: 100%;
+      line-height: 1.5;
+    }
+
+    /* Collab Bar inside Hero */
+    .hero-collab-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      margin-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .topbar-user-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 3px 10px 3px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .user-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #6366f1;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+      flex-shrink: 0;
+    }
+
+    .topbar-select-user {
+      height: 27px;
+      background: transparent;
+      border: none;
+      color: #ffffff;
+      font-size: 12.5px;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+      padding-right: 4px;
+    }
+
+    .topbar-select-user option {
+      background: #1e1b4b;
+      color: #ffffff;
+    }
+
+    .btn-topbar-add-user {
+      height: 24px;
+      padding: 0 9px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffffff;
+      background: rgba(99, 102, 241, 0.45);
+      border: 1px solid #818cf8;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn-topbar-add-user:hover {
+      background: #6366f1;
+      border-color: #a5b4fc;
+      transform: translateY(-1px);
+    }
+
+    .collab-conn-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .input-server {
+      height: 29px;
+      padding: 0 10px;
+      font-size: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #ffffff;
+      width: 170px;
+      outline: none;
+      font-family: inherit;
+    }
+
+    .input-server:focus {
+      border-color: #818cf8;
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    .btn-connect {
+      height: 29px;
+      padding: 0 13px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      background: #6366f1;
+      color: #ffffff;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn-connect:hover {
+      background: #4f46e5;
+    }
+
+    .btn-disconnect {
+      height: 29px;
+      padding: 0 13px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      border-radius: 6px;
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-disconnect:hover {
+      background: #ef4444;
+      color: #ffffff;
+      border-color: #ef4444;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .status-ws-connected {
+      background: rgba(16, 185, 129, 0.22);
+      color: #a7f3d0;
+      border: 1px solid #34d399;
+    }
+
+    .status-broadcast {
+      background: rgba(139, 92, 246, 0.25);
+      color: #ddd6fe;
+      border: 1px solid #a78bfa;
+    }
+
+    .status-disconnected {
+      background: rgba(148, 163, 184, 0.2);
+      color: #cbd5e1;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    .room-pill {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-left: auto;
+    }
+
+    .room-pill code {
+      color: #c7d2fe;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    /* Main Container - 100% Full Width Responsive */
+    .playground-body {
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 16px 20px 40px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    /* Toast Banner */
+    .toast-banner {
+      display: none;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13.5px;
+      font-weight: 500;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Drag & Drop Overlay */
+    #dropzone-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 27, 75, 0.85);
+      color: #ffffff;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      pointer-events: none;
+    }
+
+    #dropzone-overlay.active {
+      display: flex;
+    }
+
+    /* Editor Host */
+    #editor-app {
+      width: 100%;
+      min-height: 600px;
+    }
+
+    /* Instructions Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .feature-card h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .feature-card p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    footer {
+      text-align: center;
+      padding: 30px 20px;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    footer a {
+      color: #6366f1;
+      text-decoration: none;
     }
   </style>
 </head>
 <body>
-  <div>
-    <h2>✍️ Loading richtext-all Playground...</h2>
-    <p>If you are not redirected automatically, <a href="./playground/index.html">click here to open the demo</a>.</p>
+
+  <!-- Drag and drop visual indicator -->
+  <div id="dropzone-overlay">
+    <span style="font-size: 54px;">📥</span>
+    <h2 style="margin: 0; font-size: 26px;">Drop your .DOCX or Document file here</h2>
+    <p style="margin: 0; color: #c7d2fe;">richtext-all will automatically parse and open it for live editing</p>
   </div>
+
+  <!-- Top Hero Header -->
+  <header class="hero-header">
+    <div class="hero-top">
+      <div class="hero-title">
+        <span style="font-size: 28px;">✍️</span>
+        <h1>richtext-all</h1>
+        <span class="badge-pill">v1.0.0</span>
+        <span class="badge-pill badge-success">Zero Runtime Dependencies</span>
+      </div>
+      <div class="hero-actions">
+        <button class="btn-action" onclick="exportDoc('docx')">📄 Export DOCX</button>
+        <button class="btn-action" onclick="exportDoc('md')">⬇️ Export MD</button>
+        <button class="btn-action" onclick="exportDoc('html')">🌐 Export HTML</button>
+        <button class="btn-action" onclick="exportDoc('json')">📦 Context JSON</button>
+        <button class="btn-action" onclick="saveVersionPrompt()">💾 Save Version</button>
+        <button class="btn-action" onclick="window.editor && window.editor.showVersionComparison()">⚖️ Compare</button>
+        <button class="btn-action" onclick="window.editor && window.editor.showVersionHistory()">🕒 Versions</button>
+        <a class="btn-action btn-action-primary" href="https://github.com/VeereshPoojari/richtext-all" target="_blank" rel="noopener">
+          ⭐ Star on GitHub
+        </a>
+      </div>
+    </div>
+    <p class="hero-desc">
+      Universal, zero-dependency collaborative editor engine. Features <strong>Sticky Two-Row Toolbar</strong>, <strong>Direct DOCX Upload & Editing</strong>, <strong>Page Pagination (A4, Letter, Legal)</strong>, <strong>Annotation Cards Clustering & Top-Layer Elevation</strong>, and <strong>Switchable Margin Space (Left ↔ Right)</strong>.
+    </p>
+
+    <!-- Real-Time Multiplayer Collaboration Bar -->
+    <div class="hero-collab-bar">
+      <!-- Active User Dropdown & Add User in Top Bar -->
+      <div class="topbar-user-group" title="Active Collaborator & Author">
+        <span class="user-dot" id="userDot" style="background-color: #6366f1;"></span>
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85;">Author:</span>
+        <select class="topbar-select-user" id="topbarUserSelect" title="Switch Active Collaborator"></select>
+        <button type="button" class="btn-topbar-add-user" id="btnAddUser" title="Add New Collaborator">
+          + User
+        </button>
+      </div>
+
+      <!-- WebSocket URL Input & Connect / Disconnect Buttons -->
+      <div class="collab-conn-group">
+        <input type="text" id="wsInput" class="input-server" value="ws://localhost:1234" placeholder="ws://localhost:1234" />
+        <button type="button" id="btnConnect" class="btn-connect" title="Connect to room">Connect</button>
+        <button type="button" id="btnDisconnect" class="btn-disconnect" title="Exit room and remove live cursor">Disconnect</button>
+      </div>
+
+      <!-- Connection Status Badge -->
+      <div class="status-badge status-broadcast" id="statusBadge">
+        <span id="statusIcon">🟣</span> <span id="statusText">BroadcastChannel (Multi-Tab)</span>
+      </div>
+
+      <span class="room-pill">Room: <code id="roomBadge">demo-playground</code></span>
+    </div>
+  </header>
+
+  <main class="playground-body">
+
+    <!-- Toast Notification for file imports -->
+    <div id="toast-banner" class="toast-banner">
+      <span id="toast-text">✅ Document loaded successfully</span>
+      <button style="background:none; border:none; cursor:pointer; font-weight:700;" onclick="this.parentElement.style.display='none'">✕</button>
+    </div>
+
+    <!-- Hidden file inputs -->
+    <input type="file" id="docx-file-input" accept=".docx,.doc,.html,.htm,.md,.markdown,.txt" style="display: none;" onchange="handleFileSelected(event)" />
+    <input type="file" id="image-file-input" accept="image/*" style="display: none;" onchange="handleImageSelected(event)" />
+
+    <!-- Rich Editor Mount Point -->
+    <section id="editor-app"></section>
+
+    <!-- Capabilities Highlights -->
+    <section class="features-grid">
+      <div class="feature-card">
+        <h3>📄 True Page Layouts</h3>
+        <p>Switch between Print-accurate A4 Paper (210×297mm), US Letter, US Legal, and Web Infinite canvas with realistic margins.</p>
+      </div>
+      <div class="feature-card">
+        <h3>⚡ Modes & Review</h3>
+        <p>Switch effortlessly between <strong>Editing</strong>, <strong>Viewing</strong> (read-only), <strong>Suggesting</strong> (tracked changes), <strong>Comments</strong>, and <strong>Version Comparison</strong>.</p>
+      </div>
+      <div class="feature-card">
+        <h3>📥 Native DOCX Import</h3>
+        <p>Click <strong>Upload</strong> or drag & drop any <code>.docx</code> document to parse and edit live with zero external libraries.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🕒 Version Comparison</h3>
+        <p>View complete audit history of edits with timestamps and a side-by-side diff comparing additions and deletions.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Crafted with ❤️ by <a href="https://github.com/VeereshPoojari" target="_blank">Veeresh Poojari</a> &bull; MIT Licensed &bull; Zero Runtime Dependencies.
+  </footer>
+
+  <!-- Complete Standalone Engine Bundle (Works 100% offline via file:/// and http://) -->
+  <script type="module">
+    import { RichEditor } from './src/index.js';
+    window.RichEditor = RichEditor;
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => initPlayground());
+    } else {
+      initPlayground();
+    }
+  </script>
+
+  <script>
+    // Fallback script if opened as file:/// and browser restricts ES Module imports
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!window.__playgroundInitialized && window.RichEditor) {
+        initPlayground();
+      }
+    });
+
+    const sampleDocument = `
+      <h1>🚀 Welcome to richtext-all</h1>
+      <p>This is a <strong>modern, zero-dependency collaborative editor</strong> designed to replace TipTap, Slate, Quill, and TinyMCE across all web frameworks.</p>
+      
+      <h2>✨ Key Features</h2>
+      <ul>
+        <li><strong>Sticky Two-Row Toolbar:</strong> Upload, Browse, B/I/U/S/Tx, A4 Page size, Font Size, Line Spacing, Pen Color, Highlight Swatch, Alignments, and Modes.</li>
+        <li><strong>Browse & Edit DOCX:</strong> Click the green <strong>Upload</strong> button to open any <code>.docx</code> file directly and edit it!</li>
+        <li><strong>Document Review Modes:</strong> Editing, Viewing (read-only), Suggesting, and Comments sidebar.</li>
+        <li><strong>Live Split-Pane:</strong> Bidirectional Markdown &lt;-&gt; WYSIWYG synchronization.</li>
+      </ul>
+
+      <blockquote>
+        "An editor should be fast, zero-dependency, and effortlessly collaborative."
+      </blockquote>
+
+      <h2>📊 Sample Comparison Table</h2>
+      <table class="rta-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>richtext-all</th>
+            <th>TipTap</th>
+            <th>Quill</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Dependencies</td>
+            <td><strong>0 (Zero)</strong></td>
+            <td>15+</td>
+            <td>8+</td>
+          </tr>
+          <tr>
+            <td>Browse & Edit DOCX</td>
+            <td><strong>Built-in Native</strong></td>
+            <td>Complex Backend</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>A4 Page View</td>
+            <td><strong>Native</strong></td>
+            <td>Paid / Plugin</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>Comments & Tracked Suggestions</td>
+            <td><strong>Built-in</strong></td>
+            <td>Paid Cloud</td>
+            <td>No</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Try highlighting text to test the formatting tools, or select a different mode like <strong>Comments</strong> or <strong>Suggesting</strong> in the mode dropdown!</p>
+    `;
+
+    // Multi-User Identity Presets
+    const USER_PRESETS = [
+      { name: 'Veeresh Poojari (Author)', color: '#6366f1' },
+      { name: 'Alice (Design)', color: '#ec4899' },
+      { name: 'Bob (Eng)', color: '#3b82f6' },
+      { name: 'Charlie (Product)', color: '#10b981' },
+      { name: 'Diana (Lead)', color: '#8b5cf6' },
+      { name: 'Evan (QA)', color: '#f59e0b' }
+    ];
+
+    let chosenUser = null;
+    const sessionUser = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('rta_user') : null;
+    if (sessionUser) {
+      try { chosenUser = JSON.parse(sessionUser); } catch {}
+    }
+    if (!chosenUser) {
+      const rand = USER_PRESETS[Math.floor(Math.random() * USER_PRESETS.length)];
+      chosenUser = {
+        id: 'usr-' + Math.random().toString(36).substr(2, 6),
+        name: rand.name,
+        color: rand.color
+      };
+      try { sessionStorage.setItem('rta_user', JSON.stringify(chosenUser)); } catch {}
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room') || 'demo-playground';
+    const initialServerUrl = urlParams.get('server') || 'ws://localhost:1234';
+
+    function initPlayground(serverUrl = initialServerUrl) {
+      if (!window.RichEditor) return;
+
+      if (window.editor) {
+        window.editor.destroy();
+      }
+
+      // Room badge
+      const roomBadge = document.getElementById('roomBadge');
+      if (roomBadge) roomBadge.textContent = roomId;
+
+      const appEl = document.getElementById('editor-app');
+      if (appEl) {
+        appEl.innerHTML = '';
+      }
+
+      // Pre-seed available collaborator users for the author switcher
+      const allUsers = [
+        { id: 'usr-veeresh', name: 'Veeresh Poojari (Author)', color: '#6366f1' },
+        chosenUser,
+        { id: 'usr-sarah', name: 'Sarah (Design Lead)', color: '#ec4899' },
+        { id: 'usr-alex', name: 'Alex (Tech Lead)', color: '#059669' },
+        { id: 'usr-michael', name: 'Michael (Product Lead)', color: '#f59e0b' },
+        { id: 'usr-david', name: 'David (QA Engineer)', color: '#8b5cf6' }
+      ];
+      const uniqueUsers = [];
+      const seen = new Set();
+      allUsers.forEach(u => {
+        if (!seen.has(u.name)) {
+          seen.add(u.name);
+          uniqueUsers.push(u);
+        }
+      });
+
+      window.editor = new window.RichEditor('#editor-app', {
+        initialContent: sampleDocument,
+        pageLayout: 'a4',
+        gutterPosition: 'both',
+        user: chosenUser,
+        users: uniqueUsers,
+        toolbar: {
+          visible: true,
+          hiddenItems: ['users'], // User switcher cleanly moved to top bar!
+          defaults: {
+            layout: 'a4',
+            margin: 'both',
+            fontSize: '16',
+            lineHeight: '1.6',
+            mode: 'editing'
+          }
+        },
+        collab: {
+          roomId: roomId,
+          serverUrl: serverUrl,
+          user: chosenUser
+        },
+        sync: {
+          autoSave: true,
+          autoSaveInterval: 1200,
+          onSave: (payload) => {
+            console.log('[AutoSave] Saved document state:', payload);
+          }
+        }
+      });
+
+      // Top Bar Active Collaborator Dropdown & Add User Controls
+      const topbarUserSelect = document.getElementById('topbarUserSelect');
+      const userDot = document.getElementById('userDot');
+      const btnAddUser = document.getElementById('btnAddUser');
+
+      const escapeHtmlText = (str) => String(str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+      const renderTopbarUserOptions = () => {
+        if (!topbarUserSelect || !window.editor) return;
+        const users = window.editor.getUsers();
+        const curUser = window.editor.core?.options?.user || chosenUser;
+        topbarUserSelect.innerHTML = users.map(u => `
+          <option value="${u.id}" ${u.id === curUser.id ? 'selected' : ''}>
+            ${escapeHtmlText(u.name)}
+          </option>
+        `).join('');
+        if (userDot) {
+          userDot.style.backgroundColor = curUser.color || '#6366f1';
+        }
+      };
+
+      renderTopbarUserOptions();
+
+      if (topbarUserSelect && !topbarUserSelect._bound) {
+        topbarUserSelect._bound = true;
+        topbarUserSelect.addEventListener('change', (e) => {
+          const selectedId = e.target.value;
+          const u = window.editor.setUser(selectedId);
+          if (u) {
+            chosenUser = u;
+            try { sessionStorage.setItem('rta_user', JSON.stringify(u)); } catch {}
+            if (userDot) userDot.style.backgroundColor = u.color;
+            showToast(`👤 Active author switched to: ${u.name}`);
+          }
+        });
+      }
+
+      if (btnAddUser && !btnAddUser._bound) {
+        btnAddUser._bound = true;
+        btnAddUser.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.editor.promptAddUser();
+        });
+      }
+
+      window.editor.on('userChange', (user) => {
+        if (topbarUserSelect && user) {
+          topbarUserSelect.value = user.id;
+        }
+        if (userDot && user) {
+          userDot.style.backgroundColor = user.color || '#6366f1';
+        }
+      });
+
+      window.editor.on('usersChange', () => {
+        renderTopbarUserOptions();
+      });
+
+      // Update Connection Status Badge & Button States
+      const statusBadge = document.getElementById('statusBadge');
+      const statusIcon = document.getElementById('statusIcon');
+      const statusText = document.getElementById('statusText');
+      const btnConnect = document.getElementById('btnConnect');
+      const btnDisconnect = document.getElementById('btnDisconnect');
+      const wsInput = document.getElementById('wsInput');
+
+      const setConnectedUI = (isConnected, url = serverUrl) => {
+        if (!statusBadge) return;
+        if (isConnected) {
+          if (url) {
+            statusBadge.className = 'status-badge status-ws-connected';
+            if (statusIcon) statusIcon.textContent = '🟢';
+            if (statusText) statusText.textContent = `WebSocket (${url})`;
+          } else {
+            statusBadge.className = 'status-badge status-broadcast';
+            if (statusIcon) statusIcon.textContent = '🟣';
+            if (statusText) statusText.textContent = 'BroadcastChannel (Multi-Tab)';
+          }
+          if (btnConnect) btnConnect.style.display = 'none';
+          if (btnDisconnect) btnDisconnect.style.display = 'inline-flex';
+        } else {
+          statusBadge.className = 'status-badge status-disconnected';
+          if (statusIcon) statusIcon.textContent = '⚪';
+          if (statusText) statusText.textContent = 'Disconnected (Offline)';
+          if (btnConnect) btnConnect.style.display = 'inline-flex';
+          if (btnDisconnect) btnDisconnect.style.display = 'none';
+        }
+      };
+
+      setConnectedUI(true, serverUrl);
+
+      // Bind Connect Button
+      if (btnConnect && !btnConnect._bound) {
+        btnConnect._bound = true;
+        btnConnect.addEventListener('click', () => {
+          const url = wsInput.value.trim();
+          initPlayground(url || null);
+          showToast('🌐 Reconnected to collaboration room!');
+        });
+      }
+
+      // Bind Disconnect Button
+      if (btnDisconnect && !btnDisconnect._bound) {
+        btnDisconnect._bound = true;
+        btnDisconnect.addEventListener('click', () => {
+          if (window.editor) {
+            window.editor.disconnectCollab();
+          }
+          setConnectedUI(false);
+          showToast('🚪 Disconnected from room. Your live cursor has been removed for other collaborators.');
+        });
+      }
+
+      // Pre-seed sample comment and suggestion for instant visual verification
+      setTimeout(() => {
+        if (window.editor?.core) {
+          const core = window.editor.core;
+          core.comments.push({
+            id: 'c-demo-1',
+            text: 'This editor is super fast and zero-dependency! Great work.',
+            quote: 'modern, zero-dependency collaborative editor',
+            author: 'Sarah (Design Lead)',
+            authorColor: '#ec4899',
+            timestamp: 'Just now'
+          });
+          core.comments.push({
+            id: 'c-demo-2',
+            text: 'We should highlight this in our launch release notes.',
+            quote: 'designed for engineering teams',
+            author: 'Michael (Product Lead)',
+            authorColor: '#f59e0b',
+            timestamp: 'Just now'
+          });
+          core.comments.push({
+            id: 'c-demo-3',
+            text: 'Bilateral margins and full 4-card layout expansion look incredible!',
+            quote: 'pure JavaScript standards',
+            author: 'David (QA Engineer)',
+            authorColor: '#8b5cf6',
+            timestamp: 'Just now'
+          });
+          core.suggestions.push({
+            id: 's-demo-1',
+            type: 'add',
+            text: 'effortlessly collaborative',
+            quote: 'effortlessly collaborative',
+            author: 'Alex (Tech Lead)',
+            authorColor: '#059669',
+            timestamp: 'Just now'
+          });
+
+          const pageBody = core.contentArea?.querySelector('.rta-page-body');
+          if (pageBody) {
+            let html = pageBody.innerHTML;
+            html = html.replace(
+              'modern, zero-dependency collaborative editor',
+              '<mark class="rta-comment-mark" data-id="c-demo-1" data-author="Sarah (Design Lead)" data-author-color="#ec4899">modern, zero-dependency collaborative editor</mark>'
+            );
+            html = html.replace(
+              'effortlessly collaborative',
+              '<span class="rta-suggestion-mark rta-suggestion-add" data-id="sug-demo-1" data-author="Alex (Tech Lead)" data-author-color="#059669">effortlessly collaborative</span>'
+            );
+            html = html.replace(
+              'designed for engineering teams',
+              '<mark class="rta-comment-mark" data-id="c-demo-2" data-author="Michael (Product Lead)" data-author-color="#f59e0b">designed for engineering teams</mark>'
+            );
+            html = html.replace(
+              'pure JavaScript standards',
+              '<mark class="rta-comment-mark" data-id="c-demo-3" data-author="David (QA Engineer)" data-author-color="#8b5cf6">pure JavaScript standards</mark>'
+            );
+            pageBody.innerHTML = html;
+          }
+
+          core.renderGutterCards();
+
+          // Pre-seed an early checkpoint to enable instant visual diff verification
+          core.versions.push({
+            id: 'ver-draft-v1',
+            title: 'Initial Project Draft (v1.0)',
+            html: `<h1>RichText-All Engine</h1><p>A simple basic text editor designed for quick markdown notes.</p><p>Supports plain text with minimal formatting features and basic exports.</p>`,
+            timestamp: '10:30 AM',
+            author: 'Sarah (Design Lead)',
+            words: 24
+          });
+        }
+      }, 100);
+
+      setupDragAndDrop();
+    }
+
+    // Trigger file browser for DOCX / Document files
+    window.browseDocxFile = function() {
+      const fileInput = document.getElementById('docx-file-input');
+      if (fileInput) {
+        fileInput.value = '';
+        fileInput.click();
+      }
+    };
+
+    // Handle file selection
+    window.handleFileSelected = async function(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file || !window.editor) return;
+
+      try {
+        showToast(`⏳ Reading and importing "${file.name}"...`);
+        await window.editor.importDocument(file);
+        const stats = window.editor.getStats();
+        showToast(`✅ Successfully imported "${file.name}" (${stats.words} words). You can now edit!`);
+      } catch (err) {
+        console.error('Failed to parse document:', err);
+        alert(`Failed to load document: ${err.message}`);
+      }
+    };
+
+    // Handle image file selection
+    window.handleImageSelected = function(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file || !window.editor) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        window.editor.core.insertImage(e.target.result, file.name);
+        showToast(`🖼️ Inserted image: ${file.name}`);
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // Setup drag and drop on the page
+    function setupDragAndDrop() {
+      const overlay = document.getElementById('dropzone-overlay');
+
+      window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (overlay) overlay.classList.add('active');
+      });
+
+      window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+
+      window.addEventListener('dragleave', (e) => {
+        if (e.relatedTarget === null && overlay) {
+          overlay.classList.remove('active');
+        }
+      });
+
+      window.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        if (overlay) overlay.classList.remove('active');
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0 && window.editor) {
+          const file = files[0];
+          try {
+            showToast(`⏳ Reading and importing "${file.name}"...`);
+            await window.editor.importDocument(file);
+            const stats = window.editor.getStats();
+            showToast(`✅ Successfully imported "${file.name}" (${stats.words} words). You can now edit!`);
+          } catch (err) {
+            console.error('Failed to import dropped file:', err);
+            alert(`Failed to open file: ${err.message}`);
+          }
+        }
+      });
+    }
+
+    function showToast(msg) {
+      const banner = document.getElementById('toast-banner');
+      const text = document.getElementById('toast-text');
+      if (banner && text) {
+        text.textContent = msg;
+        banner.style.display = 'flex';
+        setTimeout(() => {
+          banner.style.display = 'none';
+        }, 5000);
+      }
+    }
+
+    // Expose export helpers
+    window.exportDoc = function(format) {
+      if (!window.editor) return;
+      switch (format) {
+        case 'docx':
+          window.editor.exportDOCX('richtext-all-document.doc');
+          break;
+        case 'md':
+          window.editor.exportMarkdown('richtext-all-document.md');
+          break;
+        case 'html':
+          window.editor.exportHTML('richtext-all-document.html');
+          break;
+        case 'json':
+          window.editor.exportJSON('richtext-all-context.json');
+          showToast('📦 Exported complete document context JSON!');
+          break;
+      }
+    };
+
+    window.saveVersionPrompt = function() {
+      if (!window.editor) return;
+      const defaultTitle = `Checkpoint ${window.editor.getVersions().length + 1} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+      const title = prompt('Enter a title for this version checkpoint:', defaultTitle);
+      if (title) {
+        const ver = window.editor.saveVersion(title.trim());
+        showToast(`💾 Saved checkpoint: "${ver.title}"`);
+      }
+    };
+
+    // Developer API helper printed to browser console
+    console.log(
+      '%c✍️ richtext-all Developer API Ready%c\n' +
+      '• window.editor.getData() / editor.getDocumentContext() -> Full JSON document bundle\n' +
+      '• window.editor.setData(bundle) / editor.setDocumentContext(bundle) -> Restore full document\n' +
+      '• window.editor.getVersions() / editor.saveVersion("Title") -> Manage version checkpoints\n' +
+      '• window.editor.getComparisonList() -> Incremental changelogs & diff statistics\n' +
+      '• window.editor.compareVersions(v1, v2) -> Programmatic word-by-word diff calculation\n' +
+      '• window.editor.getComments() / editor.getSuggestions() -> Full access to reviews',
+      'font-weight:bold; font-size:13px; color:#6366f1;',
+      'font-size:12px; color:#334155;'
+    );
+
+    // Multiplayer Simulation Helpers
+    let simulatedPeers = [];
+    window.simulatePeerJoin = function(name, color) {
+      if (!window.editor || !window.editor.collab) return;
+      const peerId = 'peer-' + Math.random().toString(36).substr(2, 5);
+      const peer = { id: peerId, name, color };
+      simulatedPeers.push(peer);
+      window.editor.collab.peers.set(peerId, peer);
+
+      // Position cursor on the active document page
+      const firstPage = document.querySelector('.rta-page-sheet') || document.querySelector('.rta-editor');
+      const pageRect = firstPage ? firstPage.getBoundingClientRect() : { top: 220, left: 240 };
+      const targetY = pageRect.top + 160 + (simulatedPeers.length * 45);
+      const targetX = pageRect.left + 80 + (simulatedPeers.length * 30);
+
+      window.editor.collab.updateRemoteCursor(peer, {
+        x: targetX,
+        y: targetY
+      }, false);
+
+      showToast(`👤 ${name} joined! Cursor & colored name tooltip are active.`);
+    };
+
+    window.simulatePeerEdit = function() {
+      if (!window.editor || !window.editor.collab) return;
+      if (simulatedPeers.length === 0) {
+        window.simulatePeerJoin('Sarah (Design Lead)', '#ec4899');
+      }
+
+      const randomPeer = simulatedPeers[Math.floor(Math.random() * simulatedPeers.length)];
+      const phrases = [
+        ' [Live edit by ' + randomPeer.name + ': Approved section] ',
+        ' [Added citation by ' + randomPeer.name + '] ',
+        ' [Real-time collaborative note by ' + randomPeer.name + '] '
+      ];
+      const addition = phrases[Math.floor(Math.random() * phrases.length)];
+
+      const paragraphs = document.querySelectorAll('.rta-page-body p, .rta-page-sheet p');
+      const targetP = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1] : document.querySelector('.rta-page-sheet');
+      
+      if (targetP) {
+        const rect = targetP.getBoundingClientRect();
+        window.editor.collab.updateRemoteCursor(randomPeer, {
+          x: rect.left + Math.max(20, Math.min(220, rect.width - 50)),
+          y: rect.top + 5
+        }, true);
+      }
+
+      const currentHtml = window.editor.getHTML();
+      window.editor.setHTML(currentHtml + `<p style="color: ${randomPeer.color}; font-weight: 500;">${addition}</p>`);
+
+      showToast(`✍️ ${randomPeer.name} is typing with colored tooltip!`);
+    };
+  </script>
 </body>
 </html>
