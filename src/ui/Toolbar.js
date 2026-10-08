@@ -49,13 +49,14 @@ export class Toolbar {
   constructor(editor, options = {}) {
     this.editor = editor;
     const defaultHidden = options.show?.users === true ? [] : ['users'];
+    const mergedHidden = Array.from(new Set([...defaultHidden, ...(options.hiddenItems || options.hidden || [])]));
     this.options = {
       sticky: true,
       visible: true,
       defaults: {},
       show: {},
-      hiddenItems: [...defaultHidden, ...(options.hiddenItems || [])],
-      ...options
+      ...options,
+      hiddenItems: mergedHidden
     };
 
     this.visible = this.options.visible !== false;

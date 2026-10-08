@@ -769,6 +769,25 @@ export class EditorCore {
   }
 
   async importDocument(file) {
+    if (!file) throw new Error('No file provided');
+    const fileName = (file.name || '').toLowerCase();
+    if (fileName.endsWith('.json')) {
+      const text = typeof file.text === 'function' ? await file.text() : await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result);
+        reader.onerror = rej;
+        reader.readAsText(file);
+      });
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed.schemaVersion || parsed.content || parsed.versions || parsed.settings || parsed.comments) {
+          this.setDocumentContext(parsed);
+          return this.getHTML();
+        }
+      } catch (err) {
+        console.warn('[richtext-all] Error parsing JSON context file:', err);
+      }
+    }
     const html = await readDocumentFile(file);
     this.setHTML(html);
     return html;
@@ -838,6 +857,17 @@ export class EditorCore {
     const breakHtml = '<div class="rta-page-break" contenteditable="false"><div class="rta-page-break-line"></div><span class="rta-page-break-tag">📄 PAGE BREAK</span></div><p><br></p>';
     document.execCommand('insertHTML', false, breakHtml);
     this.handleInput();
+  }
+
+  setReadOnly(readOnly) {
+    this.options.readOnly = Boolean(readOnly);
+    if (this.pages && this.pages.length > 0) {
+      this.pages.forEach(p => { p.contentEditable = !this.options.readOnly; });
+    } else if (this.contentArea) {
+      this.contentArea.contentEditable = !this.options.readOnly;
+    }
+    this.emit('readOnlyChange', this.options.readOnly);
+    return this.options.readOnly;
   }
 
   setMode(mode) {
@@ -1829,27 +1859,326 @@ export class EditorCore {
     return this.setGutterPosition(next);
   }
 
-  saveVersionSnapshot(title = null) {
+  // --- Version & Snapshot Management ---
+  saveVersion(title = null, description = '', extraMeta = {}) {
+    return this.saveVersionSnapshot(title, description, extraMeta);
+  }
+
+  saveVersionSnapshot(title = null, description = '', extraMeta = {}) {
+    const rawHtml = extraMeta.html !== undefined ? extraMeta.html : (this.getHTML() || this.options.initialContent || '<p><br></p>');
     const stats = this.getStats();
+    const wordsCount = stats.words || (rawHtml.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length);
     const ver = {
-      id: 'ver-' + Date.now(),
-      title: title || `Revision (${this.versions.length + 1})`,
-      html: this.getHTML(),
-      timestamp: new Date().toLocaleTimeString(),
+      id: 'ver-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+      title: title || `Checkpoint ${this.versions.length + 1} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
+      description: description || '',
+      html: rawHtml,
+      markdown: this.getMarkdown() || htmlToMarkdown(rawHtml),
+      text: this.getText() || rawHtml.replace(/<[^>]+>/g, ' ').trim(),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString(),
       author: this.options.user?.name || 'Author',
-      words: stats.words
+      authorColor: this.options.user?.color || '#6366f1',
+      words: wordsCount,
+      chars: stats.chars || rawHtml.length,
+      readingTime: stats.readingTime || Math.max(1, Math.ceil(wordsCount / 200)),
+      comments: JSON.parse(JSON.stringify(this.comments || [])),
+      suggestions: JSON.parse(JSON.stringify(this.suggestions || [])),
+      settings: {
+        pageLayout: this.options.pageLayout || 'infinite',
+        gutterPosition: this.options.gutterPosition || 'right'
+      },
+      ...extraMeta
     };
     this.versions.push(ver);
     this.emit('versionSaved', ver);
+    this.emit('versionsChange', this.versions);
     return ver;
   }
 
-  restoreVersion(id) {
-    const ver = this.versions.find(v => v.id === id);
-    if (ver) {
-      this.setHTML(ver.html);
-      alert(`Restored document to: ${ver.title} (${ver.timestamp})`);
+  getVersions() {
+    return [...this.versions];
+  }
+
+  setVersions(versions = []) {
+    if (!Array.isArray(versions)) {
+      throw new TypeError('[richtext-all] setVersions expects an Array of version objects');
     }
+    this.versions = [...versions];
+    this.emit('versionsChange', this.versions);
+    return this.versions;
+  }
+
+  getVersion(id) {
+    if (!id) return null;
+    if (id === 'live') {
+      const stats = this.getStats();
+      return {
+        id: 'live',
+        title: 'Current Live Document',
+        description: 'Live active document state',
+        html: this.getHTML(),
+        markdown: this.getMarkdown(),
+        text: this.getText(),
+        timestamp: 'Live Now',
+        createdAt: new Date().toISOString(),
+        author: this.options.user?.name || 'Author',
+        authorColor: this.options.user?.color || '#6366f1',
+        words: stats.words,
+        chars: stats.chars,
+        readingTime: stats.readingTime,
+        comments: [...(this.comments || [])],
+        suggestions: [...(this.suggestions || [])],
+        isLive: true
+      };
+    }
+    return this.versions.find(v => v.id === id) || null;
+  }
+
+  deleteVersion(id) {
+    const idx = this.versions.findIndex(v => v.id === id);
+    if (idx === -1) return false;
+    const [removed] = this.versions.splice(idx, 1);
+    this.emit('versionDeleted', removed);
+    this.emit('versionsChange', this.versions);
+    return removed;
+  }
+
+  restoreVersion(id, { silent = false, restoreComments = true } = {}) {
+    const ver = this.getVersion(id);
+    if (!ver) return null;
+
+    if (ver.html !== undefined) {
+      this.setHTML(ver.html);
+    }
+
+    if (ver.settings) {
+      if (ver.settings.pageLayout) this.setPageLayout(ver.settings.pageLayout);
+      if (ver.settings.gutterPosition) this.setGutterPosition(ver.settings.gutterPosition);
+    }
+
+    if (restoreComments && Array.isArray(ver.comments)) {
+      this.comments = JSON.parse(JSON.stringify(ver.comments));
+      this.renderGutterCards();
+      this.emit('commentsChange', this.comments);
+    }
+
+    if (restoreComments && Array.isArray(ver.suggestions)) {
+      this.suggestions = JSON.parse(JSON.stringify(ver.suggestions));
+      this.renderGutterCards();
+      this.emit('suggestionsChange', this.suggestions);
+    }
+
+    this.emit('versionRestored', ver);
+    return ver;
+  }
+
+  // --- Programmatic Version Comparison & Diff Calculation ---
+  compareVersions(versionIdA, versionIdB = 'live') {
+    const verA = this.getVersion(versionIdA);
+    const verB = this.getVersion(versionIdB);
+
+    if (!verA) {
+      throw new Error(`[richtext-all] Base version not found: ${versionIdA}`);
+    }
+    if (!verB) {
+      throw new Error(`[richtext-all] Comparison version not found: ${versionIdB}`);
+    }
+
+    const diff = computeDocumentDiff(verA.html || '', verB.html || '');
+    return {
+      versionA: {
+        id: verA.id,
+        title: verA.title,
+        author: verA.author,
+        timestamp: verA.timestamp,
+        words: verA.words
+      },
+      versionB: {
+        id: verB.id,
+        title: verB.title,
+        author: verB.author,
+        timestamp: verB.timestamp,
+        words: verB.words
+      },
+      stats: diff.stats,
+      leftHtml: diff.leftHtml,
+      rightHtml: diff.rightHtml,
+      unifiedHtml: diff.unifiedHtml
+    };
+  }
+
+  getComparisonList() {
+    const list = [];
+    for (let i = 0; i < this.versions.length; i++) {
+      const cur = this.versions[i];
+      const prev = i > 0 ? this.versions[i - 1] : null;
+      let diffStats = null;
+      if (prev) {
+        const diff = computeDocumentDiff(prev.html || '', cur.html || '');
+        diffStats = diff.stats;
+      }
+      list.push({
+        id: cur.id,
+        title: cur.title,
+        description: cur.description || '',
+        timestamp: cur.timestamp,
+        author: cur.author,
+        words: cur.words || 0,
+        previousVersionId: prev ? prev.id : null,
+        stats: diffStats
+      });
+    }
+    return list;
+  }
+
+  showVersionHistory() {
+    this.toggleVersionHistoryModal();
+  }
+
+  showVersionComparison(versionIdA = null, versionIdB = 'live') {
+    this.toggleVersionComparisonModal(versionIdA, versionIdB);
+  }
+
+  // --- Full Document Context (Get & Set Developer Data Access) ---
+  getDocumentContext() {
+    const stats = this.getStats();
+    return {
+      schemaVersion: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      metadata: {
+        title: this.options.title || 'Untitled Document',
+        author: this.options.user?.name || 'Author',
+        authorId: this.options.user?.id || 'usr-default',
+        authorColor: this.options.user?.color || '#6366f1',
+        createdAt: this.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        stats
+      },
+      settings: {
+        pageLayout: this.options.pageLayout || 'infinite',
+        gutterPosition: this.options.gutterPosition || 'right',
+        mode: this.mode || 'editing',
+        readOnly: Boolean(this.options.readOnly)
+      },
+      content: {
+        html: this.getHTML(),
+        text: this.getText(),
+        markdown: this.getMarkdown(),
+        json: this.getJSON()
+      },
+      comments: JSON.parse(JSON.stringify(this.comments || [])),
+      suggestions: JSON.parse(JSON.stringify(this.suggestions || [])),
+      versions: JSON.parse(JSON.stringify(this.versions || [])),
+      comparisonList: this.getComparisonList(),
+      users: JSON.parse(JSON.stringify(this.users || []))
+    };
+  }
+
+  // Developer alias
+  getData() {
+    return this.getDocumentContext();
+  }
+
+  setDocumentContext(bundle = {}) {
+    if (!bundle || typeof bundle !== 'object') {
+      throw new TypeError('[richtext-all] setDocumentContext expects an object');
+    }
+
+    // 1. Content
+    if (bundle.content && typeof bundle.content === 'object') {
+      if (bundle.content.html !== undefined) {
+        this.setHTML(bundle.content.html);
+      } else if (bundle.content.markdown !== undefined) {
+        this.setMarkdown(bundle.content.markdown);
+      }
+    } else if (bundle.html !== undefined) {
+      this.setHTML(bundle.html);
+    } else if (bundle.markdown !== undefined) {
+      this.setMarkdown(bundle.markdown);
+    }
+
+    // 2. Settings
+    if (bundle.settings && typeof bundle.settings === 'object') {
+      if (bundle.settings.pageLayout) this.setPageLayout(bundle.settings.pageLayout);
+      if (bundle.settings.gutterPosition) this.setGutterPosition(bundle.settings.gutterPosition);
+      if (bundle.settings.mode) this.setMode(bundle.settings.mode);
+      if (bundle.settings.readOnly !== undefined) this.setReadOnly(bundle.settings.readOnly);
+    }
+
+    // 3. Comments & Suggestions
+    if (Array.isArray(bundle.comments)) {
+      this.comments = JSON.parse(JSON.stringify(bundle.comments));
+    }
+    if (Array.isArray(bundle.suggestions)) {
+      this.suggestions = JSON.parse(JSON.stringify(bundle.suggestions));
+    }
+    this.renderGutterCards();
+
+    // 4. Versions
+    if (Array.isArray(bundle.versions)) {
+      this.versions = JSON.parse(JSON.stringify(bundle.versions));
+      this.emit('versionsChange', this.versions);
+    }
+
+    // 5. Users
+    if (Array.isArray(bundle.users)) {
+      this.users = JSON.parse(JSON.stringify(bundle.users));
+      this.emit('usersChange', this.users);
+    }
+
+    // 6. Metadata
+    if (bundle.metadata && bundle.metadata.title) {
+      this.options.title = bundle.metadata.title;
+    }
+
+    this.emit('contextLoaded', bundle);
+    this.emit('change', {
+      html: this.getHTML(),
+      text: this.getText(),
+      stats: this.getStats()
+    });
+    return true;
+  }
+
+  // Developer alias
+  setData(bundle) {
+    return this.setDocumentContext(bundle);
+  }
+
+  getComments() {
+    return [...this.comments];
+  }
+
+  setComments(comments = []) {
+    if (!Array.isArray(comments)) throw new TypeError('Comments must be an array');
+    this.comments = JSON.parse(JSON.stringify(comments));
+    this.renderGutterCards();
+    this.emit('commentsChange', this.comments);
+    return this.comments;
+  }
+
+  getSuggestions() {
+    return [...this.suggestions];
+  }
+
+  setSuggestions(suggestions = []) {
+    if (!Array.isArray(suggestions)) throw new TypeError('Suggestions must be an array');
+    this.suggestions = JSON.parse(JSON.stringify(suggestions));
+    this.renderGutterCards();
+    this.emit('suggestionsChange', this.suggestions);
+    return this.suggestions;
+  }
+
+  getUsers() {
+    return [...this.users];
+  }
+
+  setUsers(users = []) {
+    if (!Array.isArray(users)) throw new TypeError('Users must be an array');
+    this.users = JSON.parse(JSON.stringify(users));
+    this.emit('usersChange', this.users);
+    return this.users;
   }
 
   toggleVersionHistoryModal() {
@@ -2520,7 +2849,7 @@ export class EditorCore {
 
   getHTML() {
     if (!this.pages || this.pages.length === 0) {
-      return this.contentArea ? this.contentArea.innerHTML : '';
+      return this.contentArea ? this.contentArea.innerHTML : (this.options.initialContent || '');
     }
     return this.pages.map(page => {
       const body = page.querySelector('.rta-page-body');
@@ -2530,6 +2859,7 @@ export class EditorCore {
 
   setHTML(html) {
     const cleanHtml = sanitizeHtml(html || '<p><br></p>');
+    this.options.initialContent = cleanHtml;
     if (!this.pages || this.pages.length === 0) {
       if (this.contentArea) this.contentArea.innerHTML = cleanHtml;
       this.recordSnapshot();
@@ -2569,7 +2899,9 @@ export class EditorCore {
 
   getText() {
     if (!this.pages || this.pages.length === 0) {
-      if (!this.contentArea) return '';
+      if (!this.contentArea) {
+        return (this.options.initialContent || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
       return (this.contentArea.innerText || this.contentArea.textContent || '').trim();
     }
     return this.pages.map(page => {
@@ -2726,7 +3058,7 @@ function markdownToHtml(md) {
 function domToJSON(el) {
   if (!el) return { type: 'doc', content: [] };
   const traverse = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeType === 3 || (typeof Node !== 'undefined' && node.nodeType === Node.TEXT_NODE)) {
       return { type: 'text', text: node.textContent };
     }
     const children = Array.from(node.childNodes).map(traverse).filter(Boolean);

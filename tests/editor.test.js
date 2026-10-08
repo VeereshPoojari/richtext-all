@@ -9,6 +9,7 @@ import { autoPaginateHtml } from '../src/utils/docxReader.js';
 import { computeDocumentDiff, tokenizeHtml, diffTokens } from '../src/utils/diff.js';
 import { Toolbar, ITEM_ALIASES } from '../src/ui/Toolbar.js';
 import { CollabEngine } from '../src/collab/CollabEngine.js';
+import { EditorCore } from '../src/core/EditorCore.js';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -1130,6 +1131,114 @@ test('CollabEngine disconnect cleanly clears presence and marks disconnected', (
   assert.strictEqual(engine.peers.size, 0, 'Peers cleared on disconnect');
   assert.strictEqual(engine.isManuallyDisconnected, true, 'Marked as manually disconnected');
   assert.strictEqual(engine.isConnected, false, 'isConnected is false');
+});
+
+// Document Context, Version History & Comparison Engine Tests
+console.log('\n--- Document Context, Version History & Comparison Tests ---');
+
+test('EditorCore creates, lists, retrieves, and deletes version snapshots', () => {
+  const core = new EditorCore({
+    initialContent: '<p>Version 1 content</p>',
+    user: { id: 'u-1', name: 'Veeresh Poojari', color: '#6366f1' }
+  });
+
+  const v1 = core.saveVersion('Initial Draft', 'First draft release');
+  assert.ok(v1.id);
+  assert.strictEqual(v1.title, 'Initial Draft');
+  assert.strictEqual(v1.description, 'First draft release');
+  assert.strictEqual(v1.author, 'Veeresh Poojari');
+
+  const versions = core.getVersions();
+  assert.ok(versions.length >= 2); // Initial draft + new checkpoint
+
+  const retrieved = core.getVersion(v1.id);
+  assert.strictEqual(retrieved.title, 'Initial Draft');
+
+  // Live version pseudo-lookup
+  const live = core.getVersion('live');
+  assert.strictEqual(live.id, 'live');
+  assert.strictEqual(live.isLive, true);
+
+  // Delete version
+  const deleted = core.deleteVersion(v1.id);
+  assert.strictEqual(deleted.id, v1.id);
+  assert.strictEqual(core.getVersion(v1.id), null);
+});
+
+test('EditorCore programmatic version comparison computes accurate diffs', () => {
+  const core = new EditorCore({
+    initialContent: '<p>The quick brown fox jumps over the lazy dog.</p>'
+  });
+
+  const v1 = core.saveVersion('Original');
+  
+  // Create second version with modified text
+  const v2 = core.saveVersion('Revision', '', {
+    html: '<p>The swift red fox jumps over the sleepy dog.</p>'
+  });
+
+  const comparison = core.compareVersions(v1.id, v2.id);
+  assert.strictEqual(comparison.versionA.id, v1.id);
+  assert.strictEqual(comparison.versionB.id, v2.id);
+  assert.ok(comparison.stats.totalChanges > 0);
+  assert.ok(comparison.leftHtml.includes('rta-diff-del'));
+  assert.ok(comparison.rightHtml.includes('rta-diff-add'));
+  assert.ok(comparison.unifiedHtml.includes('rta-diff-del'));
+});
+
+test('EditorCore generates incremental comparison list with timeline diff stats', () => {
+  const core = new EditorCore();
+  core.setVersions([
+    { id: 'v1', title: 'Chapter 1', html: '<p>Introductory paragraph</p>' },
+    { id: 'v2', title: 'Chapter 2', html: '<p>Introductory paragraph with revisions</p>' }
+  ]);
+
+  const list = core.getComparisonList();
+  assert.strictEqual(list.length, 2);
+  assert.strictEqual(list[0].previousVersionId, null);
+  assert.strictEqual(list[0].stats, null);
+  assert.strictEqual(list[1].previousVersionId, 'v1');
+  assert.ok(list[1].stats.additions > 0);
+});
+
+test('EditorCore gets and sets full document context bundle (developer data access)', () => {
+  const core = new EditorCore({
+    user: { id: 'usr-v', name: 'Veeresh Poojari (Author)', color: '#6366f1' }
+  });
+
+  // Seed sample comments and suggestions
+  core.setComments([
+    { id: 'c-1', text: 'Great point', author: 'Veeresh Poojari (Author)', timestamp: '12:00' }
+  ]);
+  core.setSuggestions([
+    { id: 's-1', type: 'add', text: 'extra word', author: 'Alex', timestamp: '12:05' }
+  ]);
+
+  // Export full context
+  const bundle = core.getData();
+  assert.strictEqual(bundle.schemaVersion, '1.0.0');
+  assert.ok(bundle.metadata);
+  assert.ok(bundle.settings);
+  assert.ok(bundle.content);
+  assert.strictEqual(bundle.comments.length, 1);
+  assert.strictEqual(bundle.comments[0].text, 'Great point');
+  assert.strictEqual(bundle.suggestions.length, 1);
+  assert.ok(Array.isArray(bundle.versions));
+  assert.ok(Array.isArray(bundle.comparisonList));
+
+  // Modify and restore into a new editor instance
+  const newCore = new EditorCore();
+  bundle.content.html = '<p>Restored via developer API</p>';
+  bundle.settings.pageLayout = 'letter';
+  bundle.settings.gutterPosition = 'both';
+
+  const restored = newCore.setData(bundle);
+  assert.strictEqual(restored, true);
+  assert.strictEqual(newCore.options.pageLayout, 'letter');
+  assert.strictEqual(newCore.options.gutterPosition, 'both');
+  assert.strictEqual(newCore.getComments().length, 1);
+  assert.strictEqual(newCore.getComments()[0].text, 'Great point');
+  assert.strictEqual(newCore.getSuggestions().length, 1);
 });
 
 // Summary

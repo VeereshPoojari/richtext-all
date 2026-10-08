@@ -234,8 +234,18 @@ ${this.editor.getHTML()}
     this.downloadBlob(blob, filename);
   }
 
-  exportJSON(filename = 'document.json') {
-    const jsonStr = JSON.stringify(this.getJSON(), null, 2);
+  exportJSON(filename = 'document.json', fullContext = true) {
+    const data = (fullContext && this.editor.getDocumentContext)
+      ? this.editor.getDocumentContext()
+      : this.getJSON();
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+    this.downloadBlob(blob, filename);
+  }
+
+  exportContextJSON(filename = 'document-context.json') {
+    const data = this.editor.getDocumentContext ? this.editor.getDocumentContext() : this.getJSON();
+    const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
     this.downloadBlob(blob, filename);
   }

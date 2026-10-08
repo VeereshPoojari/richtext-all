@@ -357,16 +357,76 @@ const editor = new RichEditor('#editor', {
 | `editor.setLayout(type)` | `void` | Changes page layout (`'a4'`, `'letter'`, `'legal'`, `'infinite'`). |
 | `editor.addNewPage()` | `HTMLElement` | Appends a new physical page sheet. |
 | `editor.removePage(pageNumber)` | `void` | Removes a page sheet. |
-| `editor.saveVersion(title)` | `object` | Creates a named document snapshot. |
-| `editor.restoreVersion(id)` | `void` | Restores document to a past checkpoint. |
+| `editor.getData()` / `editor.getDocumentContext()` | `object` | Exports complete developer context bundle (content, comments, suggestions, versions, metadata, settings). |
+| `editor.setData(bundle)` / `editor.setDocumentContext(bundle)` | `boolean` | Restores entire document context from exported JSON bundle. |
+| `editor.saveVersion(title, description?)` | `object` | Creates a named version checkpoint with comments and layout state. |
+| `editor.getVersions()` | `Array<object>` | Returns array of all saved version checkpoints. |
+| `editor.setVersions(versionsList)` | `Array<object>` | Imports/sets a custom array of versions. |
+| `editor.getVersion(id)` | `object \| null` | Retrieves a specific checkpoint by ID (or `'live'`). |
+| `editor.deleteVersion(id)` | `object \| false` | Removes a version checkpoint by ID. |
+| `editor.restoreVersion(id, opts?)` | `object \| null` | Restores document HTML, comments, and settings to that version. |
+| `editor.compareVersions(idA, idB?)` | `object` | Computes word-by-word diff with `stats`, `leftHtml`, `rightHtml`, `unifiedHtml`. |
+| `editor.getComparisonList()` | `Array<object>` | Returns chronological timeline of versions with incremental diff stats. |
+| `editor.showVersionComparison(idA?, idB?)` | `void` | Opens interactive visual side-by-side / unified diff visualizer modal. |
+| `editor.showVersionHistory()` | `void` | Opens interactive version checkpoints modal. |
+| `editor.getComments()` / `editor.setComments(list)` | `Array<object>` | Gets or batch sets all comments in the document. |
+| `editor.getSuggestions()` / `editor.setSuggestions(list)` | `Array<object>` | Gets or batch sets all tracked changes/suggestions. |
+| `editor.exportContextJSON(filename?)` | `void` | Downloads complete developer document context as `.json`. |
 | `editor.addUser(name, color)` | `object` | Registers and selects a new collaborator. |
 | `editor.setUser(userOrId)` | `object` | Switches active author identity. |
-| `editor.importDocument(file)` | `Promise<string>` | Imports `.docx`, `.doc`, `.md`, `.html`, or `.txt`. |
+| `editor.importDocument(file)` | `Promise<string>` | Imports `.docx`, `.doc`, `.md`, `.html`, `.txt`, or `.json` context. |
 | `editor.browseAndOpen()` | `Promise<string>` | Prompts user file picker to open a document. |
 | `editor.getHTML()` | `string` | Returns clean document HTML. |
 | `editor.getMarkdown()` | `string` | Converts document to Markdown. |
 | `editor.getJSON()` | `object` | Returns structured JSON AST. |
 | `editor.getStats()` | `object` | Returns word count, character count, and reading time. |
+
+---
+
+### 📦 Developer-Friendly Document Context & Version Comparison API
+
+```javascript
+// 1. Export Complete Document Context Bundle
+const bundle = editor.getData();
+console.log(bundle);
+/*
+{
+  schemaVersion: '1.0.0',
+  metadata: { title: 'Q4 Product Spec', author: 'Veeresh Poojari', stats: { words: 420, chars: 2800 } },
+  settings: { pageLayout: 'a4', gutterPosition: 'both', mode: 'editing' },
+  content: { html: '...', markdown: '...', text: '...', json: { ... } },
+  comments: [ ... ],
+  suggestions: [ ... ],
+  versions: [ ... ],
+  comparisonList: [ ... ],
+  users: [ ... ]
+}
+*/
+
+// 2. Restore or Load Into Any Editor Instance
+editor.setData(bundle);
+
+// 3. Save Named Version Checkpoints
+const v1 = editor.saveVersion('v1.0 Baseline', 'Initial draft before peer review');
+const v2 = editor.saveVersion('v1.1 Review Edits', 'Addressed comments from tech lead');
+
+// 4. Programmatic Word-Level Version Comparison & Diffs
+const comparison = editor.compareVersions(v1.id, v2.id); // Or compare against 'live'
+console.log(comparison.stats);       // { additions: 14, deletions: 3, unchanged: 180, totalChanges: 17 }
+console.log(comparison.leftHtml);    // Baseline with deletions highlighted in red
+console.log(comparison.rightHtml);   // Target with additions highlighted in green
+console.log(comparison.unifiedHtml); // Combined inline diff
+
+// 5. Incremental Comparison List (Audit Timeline)
+const auditList = editor.getComparisonList();
+auditList.forEach(item => {
+  console.log(`${item.title}: +${item.stats?.additions || 0} / -${item.stats?.deletions || 0}`);
+});
+
+// 6. Direct Comments & Suggestions Access
+const allComments = editor.getComments();
+const allSuggestions = editor.getSuggestions();
+```
 
 ---
 

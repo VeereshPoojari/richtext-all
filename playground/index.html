@@ -408,7 +408,10 @@
         <button class="btn-action" onclick="exportDoc('docx')">📄 Export DOCX</button>
         <button class="btn-action" onclick="exportDoc('md')">⬇️ Export MD</button>
         <button class="btn-action" onclick="exportDoc('html')">🌐 Export HTML</button>
-        <button class="btn-action" onclick="exportDoc('json')">📦 Export JSON</button>
+        <button class="btn-action" onclick="exportDoc('json')">📦 Context JSON</button>
+        <button class="btn-action" onclick="saveVersionPrompt()">💾 Save Version</button>
+        <button class="btn-action" onclick="window.editor && window.editor.showVersionComparison()">⚖️ Compare</button>
+        <button class="btn-action" onclick="window.editor && window.editor.showVersionHistory()">🕒 Versions</button>
         <a class="btn-action btn-action-primary" href="https://github.com/VeereshPoojari/richtext-all" target="_blank" rel="noopener">
           ⭐ Star on GitHub
         </a>
@@ -949,10 +952,34 @@
           window.editor.exportHTML('richtext-all-document.html');
           break;
         case 'json':
-          window.editor.exportJSON('richtext-all-document.json');
+          window.editor.exportJSON('richtext-all-context.json');
+          showToast('📦 Exported complete document context JSON!');
           break;
       }
     };
+
+    window.saveVersionPrompt = function() {
+      if (!window.editor) return;
+      const defaultTitle = `Checkpoint ${window.editor.getVersions().length + 1} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+      const title = prompt('Enter a title for this version checkpoint:', defaultTitle);
+      if (title) {
+        const ver = window.editor.saveVersion(title.trim());
+        showToast(`💾 Saved checkpoint: "${ver.title}"`);
+      }
+    };
+
+    // Developer API helper printed to browser console
+    console.log(
+      '%c✍️ richtext-all Developer API Ready%c\n' +
+      '• window.editor.getData() / editor.getDocumentContext() -> Full JSON document bundle\n' +
+      '• window.editor.setData(bundle) / editor.setDocumentContext(bundle) -> Restore full document\n' +
+      '• window.editor.getVersions() / editor.saveVersion("Title") -> Manage version checkpoints\n' +
+      '• window.editor.getComparisonList() -> Incremental changelogs & diff statistics\n' +
+      '• window.editor.compareVersions(v1, v2) -> Programmatic word-by-word diff calculation\n' +
+      '• window.editor.getComments() / editor.getSuggestions() -> Full access to reviews',
+      'font-weight:bold; font-size:13px; color:#6366f1;',
+      'font-size:12px; color:#334155;'
+    );
 
     // Multiplayer Simulation Helpers
     let simulatedPeers = [];

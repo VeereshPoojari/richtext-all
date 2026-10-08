@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="0; url=./playground/index.html">
+  <title>richtext-all | Interactive Playground Demo</title>
+  <script>
+    // Immediate transparent redirect preserving any query parameters or hash
+    const target = './playground/index.html' + window.location.search + window.location.hash;
+    window.location.replace(target);
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #0f172a;
+      color: #e2e8f0;
+      text-align: center;
+    }
+    a {
+      color: #818cf8;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h2>✍️ Loading richtext-all Playground...</h2>
+    <p>If you are not redirected automatically, <a href="./playground/index.html">click here to open the demo</a>.</p>
+  </div>
+</body>
+</html>

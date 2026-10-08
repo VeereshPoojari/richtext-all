@@ -332,8 +332,90 @@ export class RichEditor {
     this.core.toggleVersionHistoryModal();
   }
 
-  toggleVersionComparisonModal() {
-    this.core.toggleVersionComparisonModal();
+  toggleVersionComparisonModal(compareVerId = null, targetRightId = 'live') {
+    this.core.toggleVersionComparisonModal(compareVerId, targetRightId);
+  }
+
+  // Version & Snapshot Management
+  saveVersion(title = null, description = '', extraMeta = {}) {
+    return this.core.saveVersion(title, description, extraMeta);
+  }
+
+  getVersions() {
+    return this.core.getVersions();
+  }
+
+  setVersions(versions) {
+    return this.core.setVersions(versions);
+  }
+
+  getVersion(id) {
+    return this.core.getVersion(id);
+  }
+
+  deleteVersion(id) {
+    return this.core.deleteVersion(id);
+  }
+
+  restoreVersion(id, opts) {
+    return this.core.restoreVersion(id, opts);
+  }
+
+  compareVersions(versionIdA, versionIdB = 'live') {
+    return this.core.compareVersions(versionIdA, versionIdB);
+  }
+
+  getComparisonList() {
+    return this.core.getComparisonList();
+  }
+
+  showVersionHistory() {
+    return this.core.showVersionHistory();
+  }
+
+  showVersionComparison(versionIdA = null, versionIdB = 'live') {
+    return this.core.showVersionComparison(versionIdA, versionIdB);
+  }
+
+  // Complete Document Context & Data Access
+  getData() {
+    return this.core.getData();
+  }
+
+  setData(bundle) {
+    return this.core.setData(bundle);
+  }
+
+  getDocumentContext() {
+    return this.core.getDocumentContext();
+  }
+
+  setDocumentContext(bundle) {
+    return this.core.setDocumentContext(bundle);
+  }
+
+  getComments() {
+    return this.core.getComments();
+  }
+
+  setComments(comments) {
+    return this.core.setComments(comments);
+  }
+
+  getSuggestions() {
+    return this.core.getSuggestions();
+  }
+
+  setSuggestions(suggestions) {
+    return this.core.setSuggestions(suggestions);
+  }
+
+  getUsers() {
+    return this.core.getUsers();
+  }
+
+  setUsers(users) {
+    return this.core.setUsers(users);
   }
 
   addComment(text) {
@@ -548,9 +630,14 @@ export class RichEditor {
     sync.exportHTML(filename);
   }
 
-  exportJSON(filename = 'document.json') {
+  exportJSON(filename = 'document.json', fullContext = true) {
     const sync = this.sync || new SyncAdapter(this.core);
-    sync.exportJSON(filename);
+    sync.exportJSON(filename, fullContext);
+  }
+
+  exportContextJSON(filename = 'document-context.json') {
+    const sync = this.sync || new SyncAdapter(this.core);
+    sync.exportContextJSON(filename);
   }
 
   exportText(filename = 'document.txt') {
