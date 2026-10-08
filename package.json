@@ -1,0 +1,84 @@
+{
+  "name": "richtext-all",
+  "version": "1.0.0",
+  "description": "Universal, zero-dependency collaborative rich text & live editor engine for all JavaScript frameworks and platforms (React, Next.js, Vue 3, Angular, Svelte, Vanilla). Supports real-time collaboration with live cursors, presence avatars, revision audit history, live split-pane Markdown editing, and multi-format server persistence (HTML, Markdown, JSON, DOCX).",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "unpkg": "dist/index.umd.js",
+  "jsdelivr": "dist/index.umd.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.esm.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.esm.js",
+      "require": "./dist/react/index.js",
+      "default": "./dist/react/index.esm.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue/index.esm.js",
+      "require": "./dist/vue/index.js",
+      "default": "./dist/vue/index.esm.js"
+    },
+    "./angular": {
+      "types": "./dist/angular/index.d.ts",
+      "import": "./dist/angular/index.esm.js",
+      "require": "./dist/angular/index.js",
+      "default": "./dist/angular/index.esm.js"
+    },
+    "./css": "./dist/richtext-all.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"const fs = require('fs'); if (fs.existsSync('dist')) fs.rmSync('dist', { recursive: true, force: true });\"",
+    "build": "rollup -c && node scripts/copyTypes.mjs",
+    "dev": "rollup -c -w",
+    "test": "node tests/editor.test.js"
+  },
+  "keywords": [
+    "richtext-all",
+    "rich-text-editor",
+    "wysiwyg",
+    "markdown-editor",
+    "live-editor",
+    "realtime-collaboration",
+    "multiplayer-editor",
+    "collaborative-editor",
+    "tiptap-alternative",
+    "react-rich-text",
+    "vue-rich-text",
+    "angular-rich-text",
+    "zero-dependency",
+    "presence",
+    "revision-history"
+  ],
+  "author": "Veeresh Poojari <veeresha3993@gmail.com> (https://github.com/VeereshPoojari)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VeereshPoojari/richtext-all.git"
+  },
+  "bugs": {
+    "url": "https://github.com/VeereshPoojari/richtext-all/issues"
+  },
+  "homepage": "https://veereshpoojari.github.io/richtext-all/",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.9.6",
+    "rollup-plugin-postcss": "^4.0.2"
+  }
+}

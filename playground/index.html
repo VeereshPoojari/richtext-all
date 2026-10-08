@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>richtext-all | Interactive Playground & Live Collaboration Demo</title>
+  <link rel="stylesheet" href="../src/styles/richtext-all.css">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      --rta-primary: #6366f1;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+    }
+
+    /* Top Navigation Banner */
+    .hero-header {
+      background: var(--bg-gradient);
+      color: #ffffff;
+      padding: 20px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .hero-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hero-title h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .badge-pill {
+      background: rgba(99, 102, 241, 0.25);
+      border: 1px solid #818cf8;
+      color: #c7d2fe;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      border-color: #34d399;
+      color: #a7f3d0;
+      background: rgba(16, 185, 129, 0.2);
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      background: #ffffff;
+      color: #0f172a;
+      border: none;
+      padding: 7px 13px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-action:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+
+    .btn-action-primary {
+      background: #6366f1;
+      color: #ffffff;
+    }
+
+    .btn-action-primary:hover {
+      background: #4f46e5;
+    }
+
+    .hero-desc {
+      font-size: 13.5px;
+      color: #94a3b8;
+      margin: 0;
+      max-width: 100%;
+      line-height: 1.5;
+    }
+
+    /* Main Container - 100% Full Width Responsive */
+    .playground-body {
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 16px 20px 40px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    /* Toast Banner */
+    .toast-banner {
+      display: none;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13.5px;
+      font-weight: 500;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Drag & Drop Overlay */
+    #dropzone-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 27, 75, 0.85);
+      color: #ffffff;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      pointer-events: none;
+    }
+
+    #dropzone-overlay.active {
+      display: flex;
+    }
+
+    /* Editor Host */
+    #editor-app {
+      width: 100%;
+      min-height: 600px;
+    }
+
+    /* Instructions Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .feature-card h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .feature-card p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    footer {
+      text-align: center;
+      padding: 30px 20px;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    footer a {
+      color: #6366f1;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Drag and drop visual indicator -->
+  <div id="dropzone-overlay">
+    <span style="font-size: 54px;">📥</span>
+    <h2 style="margin: 0; font-size: 26px;">Drop your .DOCX or Document file here</h2>
+    <p style="margin: 0; color: #c7d2fe;">richtext-all will automatically parse and open it for live editing</p>
+  </div>
+
+  <!-- Top Hero Header -->
+  <header class="hero-header">
+    <div class="hero-top">
+      <div class="hero-title">
+        <span style="font-size: 28px;">✍️</span>
+        <h1>richtext-all</h1>
+        <span class="badge-pill">v1.0.0</span>
+        <span class="badge-pill badge-success">Zero Runtime Dependencies</span>
+      </div>
+      <div class="hero-actions">
+        <button class="btn-action" onclick="exportDoc('docx')">📄 Export DOCX</button>
+        <button class="btn-action" onclick="exportDoc('md')">⬇️ Export MD</button>
+        <button class="btn-action" onclick="exportDoc('html')">🌐 Export HTML</button>
+        <button class="btn-action" onclick="exportDoc('json')">📦 Export JSON</button>
+        <a class="btn-action btn-action-primary" href="https://github.com/VeereshPoojari/richtext-all" target="_blank" rel="noopener">
+          ⭐ Star on GitHub
+        </a>
+      </div>
+    </div>
+    <p class="hero-desc">
+      Universal, zero-dependency collaborative editor engine. Features <strong>Sticky Two-Row Toolbar</strong>, <strong>Direct DOCX Upload & Editing</strong>, <strong>Page Pagination (A4, Letter, Legal)</strong>, <strong>Annotation Cards Clustering & Top-Layer Elevation</strong>, and <strong>Switchable Margin Space (Left ↔ Right)</strong>.
+    </p>
+  </header>
+
+  <main class="playground-body">
+
+    <!-- Toast Notification for file imports -->
+    <div id="toast-banner" class="toast-banner">
+      <span id="toast-text">✅ Document loaded successfully</span>
+      <button style="background:none; border:none; cursor:pointer; font-weight:700;" onclick="this.parentElement.style.display='none'">✕</button>
+    </div>
+
+    <!-- Hidden file inputs -->
+    <input type="file" id="docx-file-input" accept=".docx,.doc,.html,.htm,.md,.markdown,.txt" style="display: none;" onchange="handleFileSelected(event)" />
+    <input type="file" id="image-file-input" accept="image/*" style="display: none;" onchange="handleImageSelected(event)" />
+
+    <!-- Rich Editor Mount Point -->
+    <section id="editor-app"></section>
+
+    <!-- Capabilities Highlights -->
+    <section class="features-grid">
+      <div class="feature-card">
+        <h3>📄 True Page Layouts</h3>
+        <p>Switch between Print-accurate A4 Paper (210×297mm), US Letter, US Legal, and Web Infinite canvas with realistic margins.</p>
+      </div>
+      <div class="feature-card">
+        <h3>⚡ Modes & Review</h3>
+        <p>Switch effortlessly between <strong>Editing</strong>, <strong>Viewing</strong> (read-only), <strong>Suggesting</strong> (tracked changes), <strong>Comments</strong>, and <strong>Version Comparison</strong>.</p>
+      </div>
+      <div class="feature-card">
+        <h3>📥 Native DOCX Import</h3>
+        <p>Click <strong>Upload</strong> or drag & drop any <code>.docx</code> document to parse and edit live with zero external libraries.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🕒 Version Comparison</h3>
+        <p>View complete audit history of edits with timestamps and a side-by-side diff comparing additions and deletions.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Crafted with ❤️ by <a href="https://github.com/VeereshPoojari" target="_blank">Veeresh Poojari</a> &bull; MIT Licensed &bull; Zero Runtime Dependencies.
+  </footer>
+
+  <!-- Complete Standalone Engine Bundle (Works 100% offline via file:/// and http://) -->
+  <script type="module">
+    import { RichEditor } from '../src/index.js';
+    window.RichEditor = RichEditor;
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => initPlayground());
+    } else {
+      initPlayground();
+    }
+  </script>
+
+  <script>
+    // Fallback script if opened as file:/// and browser restricts ES Module imports
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!window.__playgroundInitialized && window.RichEditor) {
+        initPlayground();
+      }
+    });
+
+    const sampleDocument = `
+      <h1>🚀 Welcome to richtext-all</h1>
+      <p>This is a <strong>modern, zero-dependency collaborative editor</strong> designed to replace TipTap, Slate, Quill, and TinyMCE across all web frameworks.</p>
+      
+      <h2>✨ Key Features</h2>
+      <ul>
+        <li><strong>Sticky Two-Row Toolbar:</strong> Upload, Browse, B/I/U/S/Tx, A4 Page size, Font Size, Line Spacing, Pen Color, Highlight Swatch, Alignments, and Modes.</li>
+        <li><strong>Browse & Edit DOCX:</strong> Click the green <strong>Upload</strong> button to open any <code>.docx</code> file directly and edit it!</li>
+        <li><strong>Document Review Modes:</strong> Editing, Viewing (read-only), Suggesting, and Comments sidebar.</li>
+        <li><strong>Live Split-Pane:</strong> Bidirectional Markdown &lt;-&gt; WYSIWYG synchronization.</li>
+      </ul>
+
+      <blockquote>
+        "An editor should be fast, zero-dependency, and effortlessly collaborative."
+      </blockquote>
+
+      <h2>📊 Sample Comparison Table</h2>
+      <table class="rta-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>richtext-all</th>
+            <th>TipTap</th>
+            <th>Quill</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Dependencies</td>
+            <td><strong>0 (Zero)</strong></td>
+            <td>15+</td>
+            <td>8+</td>
+          </tr>
+          <tr>
+            <td>Browse & Edit DOCX</td>
+            <td><strong>Built-in Native</strong></td>
+            <td>Complex Backend</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>A4 Page View</td>
+            <td><strong>Native</strong></td>
+            <td>Paid / Plugin</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td>Comments & Tracked Suggestions</td>
+            <td><strong>Built-in</strong></td>
+            <td>Paid Cloud</td>
+            <td>No</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Try highlighting text to test the formatting tools, or select a different mode like <strong>Comments</strong> or <strong>Suggesting</strong> in the mode dropdown!</p>
+    `;
+
+    function initPlayground() {
+      if (window.__playgroundInitialized) return;
+      if (!window.RichEditor) return;
+      window.__playgroundInitialized = true;
+
+      const appEl = document.getElementById('editor-app');
+      if (appEl) {
+        appEl.innerHTML = '';
+      }
+
+      window.editor = new window.RichEditor('#editor-app', {
+        initialContent: sampleDocument,
+        pageLayout: 'a4', // Default to print-accurate A4 page view with real-time pagination
+        collab: {
+          roomId: 'demo-playground',
+          user: {
+            id: 'user-me',
+            name: 'You (Author)',
+            color: '#6366f1'
+          }
+        },
+        sync: {
+          autoSave: true,
+          autoSaveInterval: 1200,
+          onSave: (payload) => {
+            console.log('[AutoSave] Saved document state:', payload);
+          }
+        }
+      });
+
+      // Pre-seed sample comment and suggestion for instant visual verification
+      setTimeout(() => {
+        if (window.editor?.core) {
+          const core = window.editor.core;
+          core.comments.push({
+            id: 'c-demo-1',
+            text: 'This editor is super fast and zero-dependency! Great work.',
+            quote: 'modern, zero-dependency collaborative editor',
+            author: 'Sarah (Design Lead)',
+            authorColor: '#ec4899',
+            timestamp: 'Just now'
+          });
+          core.comments.push({
+            id: 'c-demo-2',
+            text: 'We should highlight this in our launch release notes.',
+            quote: 'designed for engineering teams',
+            author: 'Michael (Product Lead)',
+            authorColor: '#f59e0b',
+            timestamp: 'Just now'
+          });
+          core.comments.push({
+            id: 'c-demo-3',
+            text: 'Bilateral margins and full 4-card layout expansion look incredible!',
+            quote: 'pure JavaScript standards',
+            author: 'David (QA Engineer)',
+            authorColor: '#8b5cf6',
+            timestamp: 'Just now'
+          });
+          core.suggestions.push({
+            id: 'sug-demo-1',
+            type: 'add',
+            text: 'effortlessly collaborative',
+            quote: 'effortlessly collaborative',
+            author: 'Alex (Tech Lead)',
+            authorColor: '#059669',
+            timestamp: 'Just now'
+          });
+
+          const pageBody = core.contentArea?.querySelector('.rta-page-body');
+          if (pageBody) {
+            let html = pageBody.innerHTML;
+            html = html.replace(
+              'modern, zero-dependency collaborative editor',
+              '<mark class="rta-comment-mark" data-id="c-demo-1" data-author="Sarah (Design Lead)" data-author-color="#ec4899">modern, zero-dependency collaborative editor</mark>'
+            );
+            html = html.replace(
+              'effortlessly collaborative',
+              '<span class="rta-suggestion-mark rta-suggestion-add" data-id="sug-demo-1" data-author="Alex (Tech Lead)" data-author-color="#059669">effortlessly collaborative</span>'
+            );
+            html = html.replace(
+              'designed for engineering teams',
+              '<mark class="rta-comment-mark" data-id="c-demo-2" data-author="Michael (Product Lead)" data-author-color="#f59e0b">designed for engineering teams</mark>'
+            );
+            html = html.replace(
+              'pure JavaScript standards',
+              '<mark class="rta-comment-mark" data-id="c-demo-3" data-author="David (QA Engineer)" data-author-color="#8b5cf6">pure JavaScript standards</mark>'
+            );
+            pageBody.innerHTML = html;
+          }
+
+          core.renderGutterCards();
+
+          // Pre-seed an early checkpoint to enable instant visual diff verification
+          core.versions.push({
+            id: 'ver-draft-v1',
+            title: 'Initial Project Draft (v1.0)',
+            html: `<h1>RichText-All Engine</h1><p>A simple basic text editor designed for quick markdown notes.</p><p>Supports plain text with minimal formatting features and basic exports.</p>`,
+            timestamp: '10:30 AM',
+            author: 'Sarah (Design Lead)',
+            words: 24
+          });
+        }
+      }, 100);
+
+      setupDragAndDrop();
+    }
+
+    // Trigger file browser for DOCX / Document files
+    window.browseDocxFile = function() {
+      const fileInput = document.getElementById('docx-file-input');
+      if (fileInput) {
+        fileInput.value = '';
+        fileInput.click();
+      }
+    };
+
+    // Handle file selection
+    window.handleFileSelected = async function(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file || !window.editor) return;
+
+      try {
+        showToast(`⏳ Reading and importing "${file.name}"...`);
+        await window.editor.importDocument(file);
+        const stats = window.editor.getStats();
+        showToast(`✅ Successfully imported "${file.name}" (${stats.words} words). You can now edit!`);
+      } catch (err) {
+        console.error('Failed to parse document:', err);
+        alert(`Failed to load document: ${err.message}`);
+      }
+    };
+
+    // Handle image file selection
+    window.handleImageSelected = function(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file || !window.editor) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        window.editor.core.insertImage(e.target.result, file.name);
+        showToast(`🖼️ Inserted image: ${file.name}`);
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // Setup drag and drop on the page
+    function setupDragAndDrop() {
+      const overlay = document.getElementById('dropzone-overlay');
+
+      window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (overlay) overlay.classList.add('active');
+      });
+
+      window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+
+      window.addEventListener('dragleave', (e) => {
+        if (e.relatedTarget === null && overlay) {
+          overlay.classList.remove('active');
+        }
+      });
+
+      window.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        if (overlay) overlay.classList.remove('active');
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0 && window.editor) {
+          const file = files[0];
+          try {
+            showToast(`⏳ Reading and importing "${file.name}"...`);
+            await window.editor.importDocument(file);
+            const stats = window.editor.getStats();
+            showToast(`✅ Successfully imported "${file.name}" (${stats.words} words). You can now edit!`);
+          } catch (err) {
+            console.error('Failed to import dropped file:', err);
+            alert(`Failed to open file: ${err.message}`);
+          }
+        }
+      });
+    }
+
+    function showToast(msg) {
+      const banner = document.getElementById('toast-banner');
+      const text = document.getElementById('toast-text');
+      if (banner && text) {
+        text.textContent = msg;
+        banner.style.display = 'flex';
+        setTimeout(() => {
+          banner.style.display = 'none';
+        }, 5000);
+      }
+    }
+
+    // Expose export helpers
+    window.exportDoc = function(format) {
+      if (!window.editor) return;
+      switch (format) {
+        case 'docx':
+          window.editor.exportDOCX('richtext-all-document.doc');
+          break;
+        case 'md':
+          window.editor.exportMarkdown('richtext-all-document.md');
+          break;
+        case 'html':
+          window.editor.exportHTML('richtext-all-document.html');
+          break;
+        case 'json':
+          window.editor.exportJSON('richtext-all-document.json');
+          break;
+      }
+    };
+
+    // Multiplayer Simulation Helpers
+    let simulatedPeers = [];
+    window.simulatePeerJoin = function(name, color) {
+      if (!window.editor || !window.editor.collab) return;
+      const peerId = 'peer-' + Math.random().toString(36).substr(2, 5);
+      const peer = { id: peerId, name, color };
+      simulatedPeers.push(peer);
+      window.editor.collab.peers.set(peerId, peer);
+
+      // Position cursor on the active document page
+      const firstPage = document.querySelector('.rta-page-sheet') || document.querySelector('.rta-editor');
+      const pageRect = firstPage ? firstPage.getBoundingClientRect() : { top: 220, left: 240 };
+      const targetY = pageRect.top + 160 + (simulatedPeers.length * 45);
+      const targetX = pageRect.left + 80 + (simulatedPeers.length * 30);
+
+      window.editor.collab.updateRemoteCursor(peer, {
+        x: targetX,
+        y: targetY
+      }, false);
+
+      showToast(`👤 ${name} joined! Cursor & colored name tooltip are active.`);
+    };
+
+    window.simulatePeerEdit = function() {
+      if (!window.editor || !window.editor.collab) return;
+      if (simulatedPeers.length === 0) {
+        window.simulatePeerJoin('Sarah (Design Lead)', '#ec4899');
+      }
+
+      const randomPeer = simulatedPeers[Math.floor(Math.random() * simulatedPeers.length)];
+      const phrases = [
+        ' [Live edit by ' + randomPeer.name + ': Approved section] ',
+        ' [Added citation by ' + randomPeer.name + '] ',
+        ' [Real-time collaborative note by ' + randomPeer.name + '] '
+      ];
+      const addition = phrases[Math.floor(Math.random() * phrases.length)];
+
+      const paragraphs = document.querySelectorAll('.rta-page-body p, .rta-page-sheet p');
+      const targetP = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1] : document.querySelector('.rta-page-sheet');
+      
+      if (targetP) {
+        const rect = targetP.getBoundingClientRect();
+        window.editor.collab.updateRemoteCursor(randomPeer, {
+          x: rect.left + Math.max(20, Math.min(220, rect.width - 50)),
+          y: rect.top + 5
+        }, true);
+      }
+
+      const currentHtml = window.editor.getHTML();
+      window.editor.setHTML(currentHtml + `<p style="color: ${randomPeer.color}; font-weight: 500;">${addition}</p>`);
+
+      showToast(`✍️ ${randomPeer.name} is typing with colored tooltip!`);
+    };
+  </script>
+</body>
+</html>
