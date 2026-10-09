@@ -320,8 +320,52 @@ export class RichEditor {
     return this.core.addNewPage();
   }
 
+  insertPageAt(targetPageNumber, initialHtml = '<p><br></p>') {
+    return this.core.insertPageAt(targetPageNumber, initialHtml);
+  }
+
+  insertPageAfter(pageNumber, initialHtml = '<p><br></p>') {
+    return this.core.insertPageAfter(pageNumber, initialHtml);
+  }
+
+  insertPageBefore(pageNumber, initialHtml = '<p><br></p>') {
+    return this.core.insertPageBefore(pageNumber, initialHtml);
+  }
+
   removePage(pageNumber) {
     return this.core.removePage(pageNumber);
+  }
+
+  movePage(fromPageNumber, toPageNumber) {
+    return this.core.movePage(fromPageNumber, toPageNumber);
+  }
+
+  movePageUp(pageNumber) {
+    return this.core.movePageUp(pageNumber);
+  }
+
+  movePageDown(pageNumber) {
+    return this.core.movePageDown(pageNumber);
+  }
+
+  reorderPages(newOrder) {
+    return this.core.reorderPages(newOrder);
+  }
+
+  getPageCount() {
+    return this.core.getPageCount();
+  }
+
+  getPage(pageNumber) {
+    return this.core.getPage(pageNumber);
+  }
+
+  getPageHTML(pageNumber) {
+    return this.core.getPageHTML(pageNumber);
+  }
+
+  setPageHTML(pageNumber, html) {
+    return this.core.setPageHTML(pageNumber, html);
   }
 
   toggleCommentsPanel() {

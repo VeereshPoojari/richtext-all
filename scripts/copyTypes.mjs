@@ -90,6 +90,19 @@ export interface RichEditorHandle {
   isCollabConnected(): boolean;
   focus(): void;
   setLayout(layout: PageLayout): void;
+  addNewPage(): HTMLElement | undefined;
+  insertPageAt(targetPageNumber: number, initialHtml?: string): HTMLElement | undefined;
+  insertPageAfter(pageNumber: number, initialHtml?: string): HTMLElement | undefined;
+  insertPageBefore(pageNumber: number, initialHtml?: string): HTMLElement | undefined;
+  removePage(pageNumber: number): boolean | undefined;
+  movePage(fromPageNumber: number, toPageNumber: number): boolean | undefined;
+  movePageUp(pageNumber: number): boolean | undefined;
+  movePageDown(pageNumber: number): boolean | undefined;
+  reorderPages(newOrder: number[]): boolean | undefined;
+  getPageCount(): number;
+  getPage(pageNumber: number): HTMLElement | null | undefined;
+  getPageHTML(pageNumber: number): string;
+  setPageHTML(pageNumber: number, html: string): boolean | undefined;
 }
 
 export interface RichTextEditorProps extends RichEditorOptions {
@@ -185,6 +198,19 @@ export interface RichTextEditorInstance {
   isCollabConnected(): boolean;
   setLayout(layout: PageLayout): void;
   focus(): void;
+  addNewPage(): HTMLElement;
+  insertPageAt(targetPageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageAfter(pageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageBefore(pageNumber: number, initialHtml?: string): HTMLElement;
+  removePage(pageNumber: number): boolean;
+  movePage(fromPageNumber: number, toPageNumber: number): boolean;
+  movePageUp(pageNumber: number): boolean;
+  movePageDown(pageNumber: number): boolean;
+  reorderPages(newOrder: number[]): boolean;
+  getPageCount(): number;
+  getPage(pageNumber: number): HTMLElement | null;
+  getPageHTML(pageNumber: number): string;
+  setPageHTML(pageNumber: number, html: string): boolean;
 }
 
 export declare const RichTextEditor: DefineComponent<RichEditorOptions, {}, any, {}, RichTextEditorInstance>;
@@ -271,6 +297,19 @@ export declare class RichTextEditorComponent implements OnInit, OnDestroy {
   isCollabConnected(): boolean;
   setLayout(layout: PageLayout): void;
   focus(): void;
+  addNewPage(): HTMLElement;
+  insertPageAt(targetPageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageAfter(pageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageBefore(pageNumber: number, initialHtml?: string): HTMLElement;
+  removePage(pageNumber: number): boolean;
+  movePage(fromPageNumber: number, toPageNumber: number): boolean;
+  movePageUp(pageNumber: number): boolean;
+  movePageDown(pageNumber: number): boolean;
+  reorderPages(newOrder: number[]): boolean;
+  getPageCount(): number;
+  getPage(pageNumber: number): HTMLElement | null;
+  getPageHTML(pageNumber: number): string;
+  setPageHTML(pageNumber: number, html: string): boolean;
 }
 export { RichTextEditorComponent as RichEditor, RichTextEditorComponent as RichTextEditor };
 export default RichTextEditorComponent;

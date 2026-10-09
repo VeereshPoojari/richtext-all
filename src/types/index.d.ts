@@ -235,7 +235,18 @@ export declare class EditorCore {
   setReadOnly(readOnly?: boolean): boolean;
   isReadOnly(): boolean;
   addNewPage(): HTMLElement;
-  removePage(pageNumber: number): void;
+  insertPageAt(targetPageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageAfter(pageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageBefore(pageNumber: number, initialHtml?: string): HTMLElement;
+  removePage(pageNumber: number): boolean;
+  movePage(fromPageNumber: number, toPageNumber: number): boolean;
+  movePageUp(pageNumber: number): boolean;
+  movePageDown(pageNumber: number): boolean;
+  reorderPages(newOrder: number[]): boolean;
+  getPageCount(): number;
+  getPage(pageNumber: number): HTMLElement | null;
+  getPageHTML(pageNumber: number): string;
+  setPageHTML(pageNumber: number, html: string): boolean;
   focus(): void;
   
   // Document Context & Data Access
@@ -446,7 +457,18 @@ export declare class RichEditor {
   isCollabConnected(): boolean;
 
   addNewPage(): HTMLElement;
-  removePage(pageNumber: number): void;
+  insertPageAt(targetPageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageAfter(pageNumber: number, initialHtml?: string): HTMLElement;
+  insertPageBefore(pageNumber: number, initialHtml?: string): HTMLElement;
+  removePage(pageNumber: number): boolean;
+  movePage(fromPageNumber: number, toPageNumber: number): boolean;
+  movePageUp(pageNumber: number): boolean;
+  movePageDown(pageNumber: number): boolean;
+  reorderPages(newOrder: number[]): boolean;
+  getPageCount(): number;
+  getPage(pageNumber: number): HTMLElement | null;
+  getPageHTML(pageNumber: number): string;
+  setPageHTML(pageNumber: number, html: string): boolean;
   focus(): void;
   blur(): void;
   on(event: string, fn: Function): void;

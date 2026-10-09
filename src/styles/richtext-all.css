@@ -527,6 +527,32 @@
   border-bottom: 1px dashed #e2e8f0;
   user-select: none;
   margin-bottom: 16px;
+  gap: 8px;
+}
+
+.rta-page-header-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rta-page-drag-handle {
+  cursor: grab;
+  font-size: 14px;
+  color: #94a3b8;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.15s, background-color 0.15s;
+  user-select: none;
+}
+
+.rta-page-drag-handle:hover {
+  color: #475569;
+  background-color: #f1f5f9;
+}
+
+.rta-page-drag-handle:active {
+  cursor: grabbing;
 }
 
 .rta-page-num-pill {
@@ -540,20 +566,70 @@
   border-radius: 4px;
 }
 
-.rta-page-del-btn {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #ef4444;
+.rta-page-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rta-page-action-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #475569;
   font-size: 11px;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 4px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.rta-page-action-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.rta-page-insert-btn {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #16a34a;
+}
+
+.rta-page-insert-btn:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.rta-page-del-btn {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #ef4444;
 }
 
 .rta-page-del-btn:hover {
   background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.rta-page-sheet.is-dragging {
+  opacity: 0.45;
+  outline: 2px dashed #6366f1;
+}
+
+.rta-page-sheet.drag-over-top {
+  box-shadow: 0 -4px 0 0 #6366f1, var(--rta-paper-shadow);
+}
+
+.rta-page-sheet.drag-over-bottom {
+  box-shadow: 0 4px 0 0 #6366f1, var(--rta-paper-shadow);
 }
 
 .rta-page-body {

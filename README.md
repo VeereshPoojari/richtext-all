@@ -51,8 +51,10 @@ Or via CDN:
 
 ## 💡 Flagship Features
 
-### 1. 📄 Print-Accurate Physical Page Layouts & Auto-Pagination
+### 1. 📄 Print-Accurate Physical Page Layouts, In-Between Insertion & Page Reordering
 - Switch between **A4** (210×297mm), **US Letter** (8.5×11in), **US Legal** (8.5×14in), and **Web (Infinite 100%)**.
+- **Insert Pages In-Between**: Insert a new page anywhere between existing pages with one click via header buttons (`+ Add Page`) or `editor.insertPageAt(index)`. All pages automatically renumber cleanly.
+- **Interactive Page Reordering**: Move pages up/down with 1-click header buttons (`↑ Up`, `↓ Down`), drag-and-drop page sheets with the `⠿` handle, or programmatically reorder via `editor.movePage(from, to)` and `editor.reorderPages([3, 1, 2])`.
 - **Real-Time Continuous Typing Auto-Pagination**: As text, images, or tables exceed page height budgets, overflow elements automatically advance to the next page sheet without splitting words awkwardly or breaking paragraph integrity.
 - Page numbering pills (`Page 1`, `Page 2`, ...) and insert/delete page breaks with one click.
 
@@ -365,8 +367,19 @@ const editor = new RichEditor('#editor', {
 | `editor.getGutterPosition()` | `string` | Returns current margin space. |
 | `editor.toggleGutterPosition()` | `string` | Cycles margin: `right` ➔ `left` ➔ `both` ➔ `right`. |
 | `editor.setLayout(type)` | `void` | Changes page layout (`'a4'`, `'letter'`, `'legal'`, `'infinite'`). |
-| `editor.addNewPage()` | `HTMLElement` | Appends a new physical page sheet. |
-| `editor.removePage(pageNumber)` | `void` | Removes a page sheet. |
+| `editor.addNewPage()` | `HTMLElement` | Appends a new physical page sheet to the end. |
+| `editor.insertPageAt(pageNumber, html?)` | `HTMLElement` | Inserts a new page sheet at the specified 1-based page position. |
+| `editor.insertPageAfter(pageNumber, html?)` | `HTMLElement` | Inserts a new page sheet immediately after `pageNumber`. |
+| `editor.insertPageBefore(pageNumber, html?)` | `HTMLElement` | Inserts a new page sheet immediately before `pageNumber`. |
+| `editor.removePage(pageNumber)` | `boolean` | Removes a page sheet by its 1-based number. |
+| `editor.movePage(fromNumber, toNumber)` | `boolean` | Moves a page from one position to another and updates DOM. |
+| `editor.movePageUp(pageNumber)` | `boolean` | Swaps page with the preceding page sheet. |
+| `editor.movePageDown(pageNumber)` | `boolean` | Swaps page with the following page sheet. |
+| `editor.reorderPages(newOrderArray)` | `boolean` | Reorders all pages according to an array of page numbers (e.g. `[3, 1, 2]`). |
+| `editor.getPageCount()` | `number` | Returns total number of physical pages. |
+| `editor.getPage(pageNumber)` | `HTMLElement \| null` | Returns the page sheet DOM element. |
+| `editor.getPageHTML(pageNumber)` | `string` | Returns HTML content of a specific page. |
+| `editor.setPageHTML(pageNumber, html)` | `boolean` | Sets HTML content of a specific page sheet. |
 | `editor.getData()` / `editor.getDocumentContext()` | `object` | Exports complete developer context bundle (content, comments, suggestions, versions, metadata, settings). |
 | `editor.setData(bundle)` / `editor.setDocumentContext(bundle)` | `boolean` | Restores entire document context from exported JSON bundle. |
 | `editor.saveVersion(title, description?)` | `object` | Creates a named version checkpoint with comments and layout state. |
@@ -509,6 +522,23 @@ editor.on('documentImported', async ({ file, html, deletedAnnotations }) => {
     await syncDeletedAnnotationsToBackend(deletedAnnotations);
   }
 });
+
+// 7. Page Insertion & Reordering API
+// Insert a new page between Page 1 and Page 2:
+editor.insertPageAt(2, '<h2>Chapter 2: Architecture Deep Dive</h2><p>Overview...</p>');
+
+// Or insert relative to existing pages:
+editor.insertPageAfter(2);  // Inserts right after Page 2 (becomes Page 3)
+editor.insertPageBefore(1); // Inserts brand new cover page (becomes Page 1)
+
+// Reorder pages:
+editor.movePage(3, 1);     // Moves Page 3 to the very front (Page 1)
+editor.movePageUp(2);      // Swaps Page 2 with Page 1
+editor.movePageDown(2);    // Swaps Page 2 with Page 3
+
+// Batch reorder all pages to a new sequence:
+editor.reorderPages([3, 1, 2]); // Page 3 becomes Page 1, Page 1 becomes Page 2, Page 2 becomes Page 3
+console.log('Total pages:', editor.getPageCount());
 ```
 
 ---

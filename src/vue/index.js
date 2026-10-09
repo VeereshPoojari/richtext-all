@@ -249,6 +249,45 @@ export const RichTextEditor = {
     },
     focus() {
       this.editorInstance?.focus();
+    },
+    addNewPage() {
+      return this.editorInstance?.addNewPage();
+    },
+    insertPageAt(index, html) {
+      return this.editorInstance?.insertPageAt(index, html);
+    },
+    insertPageAfter(page, html) {
+      return this.editorInstance?.insertPageAfter(page, html);
+    },
+    insertPageBefore(page, html) {
+      return this.editorInstance?.insertPageBefore(page, html);
+    },
+    removePage(page) {
+      return this.editorInstance?.removePage(page);
+    },
+    movePage(from, to) {
+      return this.editorInstance?.movePage(from, to);
+    },
+    movePageUp(page) {
+      return this.editorInstance?.movePageUp(page);
+    },
+    movePageDown(page) {
+      return this.editorInstance?.movePageDown(page);
+    },
+    reorderPages(order) {
+      return this.editorInstance?.reorderPages(order);
+    },
+    getPageCount() {
+      return this.editorInstance?.getPageCount() ?? 1;
+    },
+    getPage(page) {
+      return this.editorInstance?.getPage(page);
+    },
+    getPageHTML(page) {
+      return this.editorInstance?.getPageHTML(page) ?? '';
+    },
+    setPageHTML(page, html) {
+      return this.editorInstance?.setPageHTML(page, html);
     }
   },
   render() {

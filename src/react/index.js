@@ -77,7 +77,20 @@ export const RichTextEditor = forwardRef(function RichTextEditor(props, ref) {
     connectCollab: (url) => editorInstanceRef.current?.connectCollab(url),
     isCollabConnected: () => editorInstanceRef.current?.isCollabConnected() ?? false,
     focus: () => editorInstanceRef.current?.focus(),
-    setLayout: (layout) => editorInstanceRef.current?.setLayout(layout)
+    setLayout: (layout) => editorInstanceRef.current?.setLayout(layout),
+    addNewPage: () => editorInstanceRef.current?.addNewPage(),
+    insertPageAt: (index, html) => editorInstanceRef.current?.insertPageAt(index, html),
+    insertPageAfter: (page, html) => editorInstanceRef.current?.insertPageAfter(page, html),
+    insertPageBefore: (page, html) => editorInstanceRef.current?.insertPageBefore(page, html),
+    removePage: (page) => editorInstanceRef.current?.removePage(page),
+    movePage: (from, to) => editorInstanceRef.current?.movePage(from, to),
+    movePageUp: (page) => editorInstanceRef.current?.movePageUp(page),
+    movePageDown: (page) => editorInstanceRef.current?.movePageDown(page),
+    reorderPages: (order) => editorInstanceRef.current?.reorderPages(order),
+    getPageCount: () => editorInstanceRef.current?.getPageCount() ?? 1,
+    getPage: (page) => editorInstanceRef.current?.getPage(page),
+    getPageHTML: (page) => editorInstanceRef.current?.getPageHTML(page) ?? '',
+    setPageHTML: (page, html) => editorInstanceRef.current?.setPageHTML(page, html)
   }));
 
   useEffect(() => {

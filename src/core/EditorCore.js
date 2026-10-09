@@ -157,16 +157,20 @@ export class EditorCore {
     if (typeof document === 'undefined') {
       const sanitized = sanitizeHtml(initialHtml || '<p><br></p>');
       const text = sanitized.replace(/<[^>]+>/g, ' ').trim();
+      let currentNumber = pageNumber;
+      const bodyObj = { innerHTML: sanitized, textContent: text, innerText: text };
       return {
         className: `rta-page-sheet rta-editor rta-content-editable rta-layout-${this.options.pageLayout}`,
-        getAttribute: (attr) => attr === 'data-page-number' ? pageNumber : null,
-        setAttribute: () => {},
-        innerHTML: sanitized,
+        getAttribute: (attr) => attr === 'data-page-number' ? currentNumber : null,
+        setAttribute: (attr, val) => { if (attr === 'data-page-number') currentNumber = val; },
+        get innerHTML() { return bodyObj.innerHTML; },
+        set innerHTML(val) { bodyObj.innerHTML = val; },
         textContent: text,
         innerText: text,
         childNodes: [],
         querySelector: (sel) => {
-          if (sel === '.rta-page-body') return { innerHTML: sanitized, textContent: text, innerText: text };
+          if (sel === '.rta-page-body') return bodyObj;
+          if (sel === '.rta-page-num-pill') return { textContent: `Page ${currentNumber}` };
           return null;
         },
         querySelectorAll: () => [],
@@ -192,8 +196,16 @@ export class EditorCore {
     header.className = 'rta-page-header-bar';
     header.contentEditable = 'false';
     header.innerHTML = `
-      <span class="rta-page-num-pill">Page ${pageNumber}</span>
-      ${pageNumber > 1 ? '<button type="button" class="rta-page-del-btn" title="Remove page">✕ Remove Page</button>' : ''}
+      <div class="rta-page-header-left">
+        <span class="rta-page-drag-handle" title="Drag to reorder page" draggable="true">⠿</span>
+        <span class="rta-page-num-pill">Page ${pageNumber}</span>
+      </div>
+      <div class="rta-page-header-actions">
+        <button type="button" class="rta-page-action-btn rta-page-move-up-btn" title="Move page up">↑ Up</button>
+        <button type="button" class="rta-page-action-btn rta-page-move-down-btn" title="Move page down">↓ Down</button>
+        <button type="button" class="rta-page-action-btn rta-page-insert-btn" title="Insert new page below">+ Add Page</button>
+        <button type="button" class="rta-page-action-btn rta-page-del-btn" title="Remove page">✕ Remove</button>
+      </div>
     `;
 
     const body = document.createElement('div');
@@ -203,9 +215,80 @@ export class EditorCore {
     page.appendChild(header);
     page.appendChild(body);
 
+    header.querySelector('.rta-page-move-up-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const num = parseInt(page.getAttribute('data-page-number'));
+      this.movePageUp(num);
+    });
+
+    header.querySelector('.rta-page-move-down-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const num = parseInt(page.getAttribute('data-page-number'));
+      this.movePageDown(num);
+    });
+
+    header.querySelector('.rta-page-insert-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const num = parseInt(page.getAttribute('data-page-number'));
+      this.insertPageAfter(num);
+    });
+
     header.querySelector('.rta-page-del-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.removePage(pageNumber);
+      const num = parseInt(page.getAttribute('data-page-number'));
+      this.removePage(num);
+    });
+
+    // Drag-and-drop page reordering
+    const dragHandle = header.querySelector('.rta-page-drag-handle');
+    if (dragHandle) {
+      dragHandle.addEventListener('dragstart', (e) => {
+        const num = parseInt(page.getAttribute('data-page-number'));
+        if (e.dataTransfer) {
+          e.dataTransfer.setData('text/plain', String(num));
+          e.dataTransfer.effectAllowed = 'move';
+        }
+        page.classList.add('is-dragging');
+      });
+
+      dragHandle.addEventListener('dragend', () => {
+        page.classList.remove('is-dragging');
+        if (typeof document !== 'undefined') {
+          document.querySelectorAll('.rta-page-sheet').forEach(p => {
+            p.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
+        }
+      });
+    }
+
+    page.addEventListener('dragover', (e) => {
+      if (!page.classList.contains('is-dragging')) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        const rect = page.getBoundingClientRect ? page.getBoundingClientRect() : { top: 0, height: 100 };
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+          page.classList.add('drag-over-top');
+          page.classList.remove('drag-over-bottom');
+        } else {
+          page.classList.add('drag-over-bottom');
+          page.classList.remove('drag-over-top');
+        }
+      }
+    });
+
+    page.addEventListener('dragleave', () => {
+      page.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    page.addEventListener('drop', (e) => {
+      e.preventDefault();
+      page.classList.remove('drag-over-top', 'drag-over-bottom');
+      const fromNum = parseInt(e.dataTransfer?.getData('text/plain'));
+      if (!fromNum || isNaN(fromNum)) return;
+      const toNum = parseInt(page.getAttribute('data-page-number'));
+      if (fromNum === toNum) return;
+      this.movePage(fromNum, toNum);
     });
 
     this.bindPageEvents(page);
@@ -265,41 +348,184 @@ export class EditorCore {
   }
 
   addNewPage() {
-    const newPageNum = this.pages.length + 1;
-    const newPage = this.createPageSheet(newPageNum, '<p><br></p>');
-    this.pages.push(newPage);
-    this.pagesContainer.appendChild(newPage);
+    return this.insertPageAt((this.pages ? this.pages.length : 0) + 1, '<p><br></p>');
+  }
+
+  insertPageAt(targetPageNumber, initialHtml = '<p><br></p>') {
+    const total = this.pages ? this.pages.length : 0;
+    // targetPageNumber is 1-indexed. Clamped between 1 and total + 1.
+    const pageNum = Math.max(1, Math.min(total + 1, parseInt(targetPageNumber) || (total + 1)));
+    const insertIndex = pageNum - 1;
+
+    const newPage = this.createPageSheet(pageNum, initialHtml);
+    if (!this.pages) this.pages = [];
+    this.pages.splice(insertIndex, 0, newPage);
+
+    if (this.pagesContainer && typeof document !== 'undefined') {
+      const nextSibling = this.pages[insertIndex + 1];
+      if (nextSibling && nextSibling.parentNode === this.pagesContainer) {
+        this.pagesContainer.insertBefore(newPage, nextSibling);
+      } else {
+        this.pagesContainer.appendChild(newPage);
+      }
+    }
+
+    this.renumberPages();
     this.contentArea = newPage;
     this.el = newPage;
 
-    const p = newPage.querySelector('.rta-page-body p') || newPage;
-    p.focus();
-    newPage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const p = newPage.querySelector ? (newPage.querySelector('.rta-page-body p') || newPage) : newPage;
+    if (p && typeof p.focus === 'function') p.focus();
+    if (typeof newPage.scrollIntoView === 'function') {
+      newPage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
     this.handleInput();
-    this.emit('pageAdded', { pageNumber: newPageNum, totalPages: this.pages.length });
+    this.emit('pageAdded', { pageNumber: pageNum, totalPages: this.pages.length });
+    this.emit('pageInserted', { pageNumber: pageNum, totalPages: this.pages.length });
+    this.emit('pageCountChange', { totalPages: this.pages.length });
     return newPage;
   }
 
+  insertPageAfter(pageNumber, initialHtml = '<p><br></p>') {
+    return this.insertPageAt(parseInt(pageNumber) + 1, initialHtml);
+  }
+
+  insertPageBefore(pageNumber, initialHtml = '<p><br></p>') {
+    return this.insertPageAt(parseInt(pageNumber), initialHtml);
+  }
+
   removePage(pageNumber) {
-    if (this.pages.length <= 1) return;
-    const index = this.pages.findIndex(p => parseInt(p.getAttribute('data-page-number')) === pageNumber);
+    if (!this.pages || this.pages.length <= 1) return false;
+    const targetNum = parseInt(pageNumber);
+    const index = this.pages.findIndex(p => parseInt(p.getAttribute('data-page-number')) === targetNum);
     if (index >= 0) {
       const [removed] = this.pages.splice(index, 1);
-      removed.remove();
-      this.pages.forEach((p, idx) => {
-        const num = idx + 1;
-        p.setAttribute('data-page-number', num);
-        const pill = p.querySelector('.rta-page-num-pill');
-        if (pill) pill.textContent = `Page ${num}`;
-      });
+      if (removed && typeof removed.remove === 'function') {
+        removed.remove();
+      }
+      this.renumberPages();
       const active = this.pages[Math.max(0, index - 1)];
       this.contentArea = active;
       this.el = active;
-      active.focus();
+      if (active && typeof active.focus === 'function') active.focus();
       this.handleInput();
-      this.emit('pageRemoved', { totalPages: this.pages.length });
+      this.emit('pageRemoved', { pageNumber: targetNum, totalPages: this.pages.length });
+      this.emit('pageCountChange', { totalPages: this.pages.length });
+      return true;
     }
+    return false;
+  }
+
+  movePage(fromPageNumber, toPageNumber) {
+    if (!this.pages || this.pages.length <= 1) return false;
+    const from = Math.max(1, Math.min(this.pages.length, parseInt(fromPageNumber)));
+    const to = Math.max(1, Math.min(this.pages.length, parseInt(toPageNumber)));
+    if (from === to) return true;
+
+    const fromIndex = from - 1;
+    const toIndex = to - 1;
+
+    const [movedPage] = this.pages.splice(fromIndex, 1);
+    this.pages.splice(toIndex, 0, movedPage);
+
+    // Reorder DOM elements to match this.pages array
+    if (this.pagesContainer && typeof document !== 'undefined') {
+      this.pages.forEach(p => {
+        if (p && p.parentNode === this.pagesContainer) {
+          this.pagesContainer.appendChild(p);
+        }
+      });
+    }
+
+    this.renumberPages();
+    this.contentArea = movedPage;
+    this.el = movedPage;
+
+    if (typeof movedPage.scrollIntoView === 'function') {
+      movedPage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    this.handleInput();
+    this.emit('pageMoved', { fromPageNumber: from, toPageNumber: to, totalPages: this.pages.length });
+    this.emit('pagesReordered', {
+      pagesOrder: this.pages.map((_, i) => i + 1),
+      totalPages: this.pages.length
+    });
+    return true;
+  }
+
+  movePageUp(pageNumber) {
+    const num = parseInt(pageNumber);
+    if (num <= 1) return false;
+    return this.movePage(num, num - 1);
+  }
+
+  movePageDown(pageNumber) {
+    const num = parseInt(pageNumber);
+    if (!this.pages || num >= this.pages.length) return false;
+    return this.movePage(num, num + 1);
+  }
+
+  reorderPages(newOrder) {
+    if (!this.pages || this.pages.length <= 1 || !Array.isArray(newOrder)) return false;
+    if (newOrder.length !== this.pages.length) return false;
+
+    const oldPages = [...this.pages];
+    const reordered = [];
+
+    for (const item of newOrder) {
+      const idx = parseInt(item) - 1;
+      if (idx < 0 || idx >= oldPages.length || !oldPages[idx]) {
+        return false;
+      }
+      reordered.push(oldPages[idx]);
+    }
+
+    this.pages = reordered;
+
+    if (this.pagesContainer && typeof document !== 'undefined') {
+      this.pages.forEach(p => {
+        if (p && p.parentNode === this.pagesContainer) {
+          this.pagesContainer.appendChild(p);
+        }
+      });
+    }
+
+    this.renumberPages();
+    this.handleInput();
+    this.emit('pagesReordered', {
+      pagesOrder: this.pages.map((_, i) => i + 1),
+      totalPages: this.pages.length
+    });
+    return true;
+  }
+
+  getPageCount() {
+    return this.pages ? this.pages.length : 1;
+  }
+
+  getPage(pageNumber) {
+    const idx = parseInt(pageNumber) - 1;
+    return (this.pages && idx >= 0 && idx < this.pages.length) ? this.pages[idx] : null;
+  }
+
+  getPageHTML(pageNumber) {
+    const page = this.getPage(pageNumber);
+    if (!page) return '';
+    const body = page.querySelector ? page.querySelector('.rta-page-body') : null;
+    return body ? body.innerHTML : page.innerHTML;
+  }
+
+  setPageHTML(pageNumber, html) {
+    const page = this.getPage(pageNumber);
+    if (!page) return false;
+    const sanitized = sanitizeHtml(html || '<p><br></p>');
+    const body = page.querySelector ? page.querySelector('.rta-page-body') : null;
+    if (body) body.innerHTML = sanitized;
+    page.innerHTML = sanitized;
+    this.handleInput();
+    return true;
   }
 
   getBodyHeightBudget(page) {
@@ -315,28 +541,26 @@ export class EditorCore {
 
   renumberPages() {
     if (!this.pages) return;
+    const total = this.pages.length;
     this.pages.forEach((p, idx) => {
       const num = idx + 1;
       p.setAttribute('data-page-number', num);
-      const pill = p.querySelector('.rta-page-num-pill');
+      const pill = p.querySelector ? p.querySelector('.rta-page-num-pill') : null;
       if (pill) pill.textContent = `Page ${num}`;
-      const delBtn = p.querySelector('.rta-page-del-btn');
-      if (num === 1 && delBtn) {
-        delBtn.remove();
-      } else if (num > 1 && !delBtn) {
-        const header = p.querySelector('.rta-page-header-bar');
-        if (header) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'rta-page-del-btn';
-          btn.title = 'Remove page';
-          btn.textContent = '✕ Remove Page';
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.removePage(num);
-          });
-          header.appendChild(btn);
-        }
+
+      const upBtn = p.querySelector ? p.querySelector('.rta-page-move-up-btn') : null;
+      if (upBtn) {
+        upBtn.style.display = (num > 1) ? 'inline-flex' : 'none';
+      }
+
+      const downBtn = p.querySelector ? p.querySelector('.rta-page-move-down-btn') : null;
+      if (downBtn) {
+        downBtn.style.display = (num < total) ? 'inline-flex' : 'none';
+      }
+
+      const delBtn = p.querySelector ? p.querySelector('.rta-page-del-btn') : null;
+      if (delBtn) {
+        delBtn.style.display = (total > 1) ? 'inline-flex' : 'none';
       }
     });
   }

@@ -1489,6 +1489,159 @@ test('EditorCore importDocument() respects onConfirmOverwrite hook and cancellat
   assert.strictEqual(core.getSuggestions().length, 0);
 });
 
+test('EditorCore inserts new pages between existing pages and auto-renumbers', () => {
+  const core = new EditorCore();
+  const createMock = (text, num) => {
+    let currNum = num;
+    const bodyObj = { innerHTML: `<p>${text}</p>` };
+    return {
+      getAttribute: (attr) => attr === 'data-page-number' ? currNum : null,
+      setAttribute: (attr, val) => { if (attr === 'data-page-number') currNum = val; },
+      get innerHTML() { return bodyObj.innerHTML; },
+      set innerHTML(val) { bodyObj.innerHTML = val; },
+      querySelector: (sel) => {
+        if (sel === '.rta-page-body') return bodyObj;
+        if (sel === '.rta-page-num-pill') return { textContent: `Page ${currNum}` };
+        return null;
+      },
+      querySelectorAll: () => [],
+      remove: () => {}
+    };
+  };
+
+  core.pages = [
+    createMock('Alpha (P1)', 1),
+    createMock('Beta (P2)', 2),
+    createMock('Gamma (P3)', 3)
+  ];
+  core.pagesContainer = {
+    appendChild: () => {},
+    insertBefore: () => {}
+  };
+
+  assert.strictEqual(core.getPageCount(), 3);
+
+  let lastInserted = null;
+  core.on('pageInserted', (data) => {
+    lastInserted = data;
+  });
+
+  // Insert a new page at index 2 (between P1 and P2)
+  const newP2 = core.insertPageAt(2, '<p>Inserted Between 1 and 2</p>');
+  assert.ok(newP2);
+  assert.ok(lastInserted);
+  assert.strictEqual(lastInserted.pageNumber, 2);
+  assert.strictEqual(lastInserted.totalPages, 4);
+  assert.strictEqual(core.getPageCount(), 4);
+
+  // Check order: P1, New P2, Beta (now P3), Gamma (now P4)
+  assert.ok(core.getPageHTML(1).includes('Alpha'));
+  assert.ok(core.getPageHTML(2).includes('Inserted Between 1 and 2'));
+  assert.ok(core.getPageHTML(3).includes('Beta'));
+  assert.ok(core.getPageHTML(4).includes('Gamma'));
+
+  // Test insertPageAfter (after page 2 -> should become page 3)
+  core.insertPageAfter(2, '<p>Inserted After P2</p>');
+  assert.strictEqual(core.getPageCount(), 5);
+  assert.strictEqual(lastInserted.pageNumber, 3);
+  assert.strictEqual(lastInserted.totalPages, 5);
+  assert.ok(core.getPageHTML(3).includes('Inserted After P2'));
+  assert.ok(core.getPageHTML(4).includes('Beta'));
+
+  // Test insertPageBefore (before page 1 -> becomes new page 1)
+  core.insertPageBefore(1, '<p>Brand New Cover Page</p>');
+  assert.strictEqual(core.getPageCount(), 6);
+  assert.strictEqual(lastInserted.pageNumber, 1);
+  assert.strictEqual(lastInserted.totalPages, 6);
+  assert.ok(core.getPageHTML(1).includes('Brand New Cover Page'));
+  assert.ok(core.getPageHTML(2).includes('Alpha'));
+});
+
+test('EditorCore moves and reorders pages with event emissions', () => {
+  const core = new EditorCore();
+  const createMock = (text, num) => {
+    let currNum = num;
+    const bodyObj = { innerHTML: `<p>${text}</p>` };
+    return {
+      getAttribute: (attr) => attr === 'data-page-number' ? currNum : null,
+      setAttribute: (attr, val) => { if (attr === 'data-page-number') currNum = val; },
+      get innerHTML() { return bodyObj.innerHTML; },
+      set innerHTML(val) { bodyObj.innerHTML = val; },
+      querySelector: (sel) => {
+        if (sel === '.rta-page-body') return bodyObj;
+        if (sel === '.rta-page-num-pill') return { textContent: `Page ${currNum}` };
+        return null;
+      },
+      querySelectorAll: () => [],
+      remove: () => {}
+    };
+  };
+
+  core.pages = [
+    createMock('Page A', 1),
+    createMock('Page B', 2),
+    createMock('Page C', 3)
+  ];
+  core.pagesContainer = {
+    appendChild: () => {},
+    insertBefore: () => {}
+  };
+
+  let lastMoved = null;
+  core.on('pageMoved', (data) => {
+    lastMoved = data;
+  });
+
+  // 1. Move Page 1 to Page 3 -> Sequence becomes [Page B, Page C, Page A]
+  const moveRes = core.movePage(1, 3);
+  assert.strictEqual(moveRes, true);
+  assert.ok(lastMoved);
+  assert.strictEqual(lastMoved.fromPageNumber, 1);
+  assert.strictEqual(lastMoved.toPageNumber, 3);
+  assert.ok(core.getPageHTML(1).includes('Page B'));
+  assert.ok(core.getPageHTML(2).includes('Page C'));
+  assert.ok(core.getPageHTML(3).includes('Page A'));
+
+  // 2. Move Page 2 up -> Sequence becomes [Page C, Page B, Page A]
+  core.movePageUp(2);
+  assert.strictEqual(lastMoved.fromPageNumber, 2);
+  assert.strictEqual(lastMoved.toPageNumber, 1);
+  assert.ok(core.getPageHTML(1).includes('Page C'));
+  assert.ok(core.getPageHTML(2).includes('Page B'));
+  assert.ok(core.getPageHTML(3).includes('Page A'));
+
+  // 3. Move Page 2 down -> Sequence becomes [Page C, Page A, Page B]
+  core.movePageDown(2);
+  assert.strictEqual(lastMoved.fromPageNumber, 2);
+  assert.strictEqual(lastMoved.toPageNumber, 3);
+  assert.ok(core.getPageHTML(1).includes('Page C'));
+  assert.ok(core.getPageHTML(2).includes('Page A'));
+  assert.ok(core.getPageHTML(3).includes('Page B'));
+
+  // 4. Batch Reorder Pages using array of numbers: [2, 3, 1]
+  // Current: 1: Page C, 2: Page A, 3: Page B
+  // Reorder with [2, 3, 1]:
+  // 1st item becomes current item 2 (Page A)
+  // 2nd item becomes current item 3 (Page B)
+  // 3rd item becomes current item 1 (Page C)
+  let reorderFired = false;
+  core.on('pagesReordered', (data) => {
+    reorderFired = true;
+    assert.strictEqual(data.totalPages, 3);
+  });
+
+  const reorderRes = core.reorderPages([2, 3, 1]);
+  assert.strictEqual(reorderRes, true);
+  assert.ok(reorderFired);
+  assert.ok(core.getPageHTML(1).includes('Page A'));
+  assert.ok(core.getPageHTML(2).includes('Page B'));
+  assert.ok(core.getPageHTML(3).includes('Page C'));
+
+  // 5. Test setPageHTML on page 2
+  core.setPageHTML(2, '<p>Updated Page B with new data</p>');
+  assert.ok(core.getPageHTML(2).includes('Updated Page B with new data'));
+});
+
 // Summary
 console.log(`\n========================================`);
 console.log(`Test Results: ${passedTests}/${totalTests} Passed.`);
