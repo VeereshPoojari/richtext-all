@@ -1,6 +1,6 @@
 {
   "name": "richtext-all",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Universal, zero-dependency collaborative rich text & live editor engine for all JavaScript frameworks and platforms (React, Next.js, Vue 3, Angular, Svelte, Vanilla). Supports real-time collaboration with live cursors, presence avatars, revision audit history, live split-pane Markdown editing, and multi-format server persistence (HTML, Markdown, JSON, DOCX).",
   "type": "module",
   "main": "dist/index.js",
