@@ -33,7 +33,8 @@
       "require": "./dist/angular/index.js",
       "default": "./dist/angular/index.esm.js"
     },
-    "./css": "./dist/richtext-all.css"
+    "./css": "./dist/richtext-all.css",
+    "./dist/*": "./dist/*"
   },
   "files": [
     "dist",
@@ -42,7 +43,7 @@
     "SECURITY.md"
   ],
   "scripts": {
-    "clean": "node -e \"const fs = require('fs'); if (fs.existsSync('dist')) fs.rmSync('dist', { recursive: true, force: true });\"",
+    "clean": "node -e \"import('node:fs').then(fs => { if (fs.existsSync('dist')) fs.rmSync('dist', { recursive: true, force: true }); })\"",
     "build": "rollup -c && node scripts/copyTypes.mjs",
     "prepublishOnly": "npm run build && npm test",
     "collab": "node scripts/collab-server.mjs",
@@ -76,6 +77,26 @@
     "url": "https://github.com/VeereshPoojari/richtext-all/issues"
   },
   "homepage": "https://veereshpoojari.github.io/richtext-all/",
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0",
+    "vue": ">=3.0.0",
+    "@angular/core": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "@angular/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-node-resolve": "^15.2.3",

@@ -511,6 +511,8 @@
   transition: box-shadow 0.2s ease;
   overflow-x: clip;
   max-width: 100%;
+  content-visibility: auto;
+  contain-intrinsic-size: 820px 1123px;
 }
 
 .rta-page-sheet:focus-within {
@@ -1664,6 +1666,210 @@
   background: #fee2e2;
   border-color: #fca5a5;
   color: #b91c1c;
+}
+
+/* Comment Replies Group & Drawer */
+.rta-comment-replies-group {
+  margin: 8px 0 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+.rta-comment-replies-group:hover,
+.rta-comment-replies-group:focus-within,
+.rta-comment-replies-group.is-extended {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.rta-replies-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.rta-replies-group-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.rta-reply-group-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #ffffff;
+  margin-left: -5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.rta-reply-group-avatar:first-child {
+  margin-left: 0;
+}
+
+.rta-replies-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.rta-replies-expand-hint {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-left: auto;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.rta-comment-replies-group:hover .rta-replies-expand-hint,
+.rta-comment-replies-group:focus-within .rta-replies-expand-hint,
+.rta-comment-replies-group.is-extended .rta-replies-expand-hint,
+.rta-gutter-card:hover .rta-comment-replies-group .rta-replies-expand-hint {
+  color: #6366f1;
+  transform: rotate(180deg);
+}
+
+/* Collapsible Replies Drawer - Extends on Hover, Card Hover, or Focus */
+.rta-replies-group-drawer {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin-top 0.25s ease;
+}
+
+.rta-comment-replies-group:hover .rta-replies-group-drawer,
+.rta-comment-replies-group:focus-within .rta-replies-group-drawer,
+.rta-comment-replies-group.is-extended .rta-replies-group-drawer,
+.rta-gutter-card:hover .rta-comment-replies-group .rta-replies-group-drawer {
+  max-height: 600px;
+  opacity: 1;
+  margin-top: 8px;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+/* Comment Replies Thread */
+.rta-comment-replies {
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rta-comment-reply-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rta-reply-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rta-reply-avatar {
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 10px !important;
+  line-height: 18px !important;
+  border-radius: 50%;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rta-reply-author {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.rta-reply-time {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.rta-btn-del-reply {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.rta-btn-del-reply:hover {
+  color: #ef4444;
+}
+
+.rta-reply-body {
+  font-size: 12px;
+  color: #1e293b;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.rta-comment-reply-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.rta-reply-input {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  outline: none;
+  font-family: inherit;
+  background: #ffffff;
+}
+
+.rta-reply-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.rta-btn-card-reply {
+  background: #3b82f6;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.rta-btn-card-reply:hover {
+  background: #2563eb;
 }
 
 /* Draft Comment Textarea & Actions */

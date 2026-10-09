@@ -1,19 +1,20 @@
 /**
  * docxReader.js - Zero-Dependency Microsoft Word (.docx) & Document Importer
- * Parses .docx ZIP XML packages, Word HTML, Markdown, and Text files directly in the browser.
+ * Parses .docx ZIP packages (XML, relationships, embedded media images, hyperlinks),
+ * Word HTML, Markdown, and Text files directly in the browser.
  * (c) 2026 Veeresh Poojari <veeresha3993@gmail.com>
  * MIT Licensed
  */
 
-import { escapeHtml, sanitizeHtml } from './security.js';
+import { escapeHtml, sanitizeHtml, sanitizeUrl } from './security.js';
 
 /**
- * Reads any document file (docx, doc, md, html, txt) and returns editable HTML with page-by-page splitting.
+ * Reads any document file (docx, doc, md, html, txt) and returns editable HTML.
  */
 export async function readDocumentFile(file) {
   if (!file) throw new Error('No file provided');
 
-  const fileName = file.name.toLowerCase();
+  const fileName = (file.name || '').toLowerCase();
   let rawHtml = '';
 
   // 1. DOCX File
@@ -23,7 +24,7 @@ export async function readDocumentFile(file) {
   // 2. Legacy Word .doc or HTML
   else if (fileName.endsWith('.doc') || fileName.endsWith('.html') || fileName.endsWith('.htm')) {
     const text = await readFileAsText(file);
-    if (text.includes('<body') || text.includes('<html')) {
+    if ((text.includes('<body') || text.includes('<html')) && typeof DOMParser !== 'undefined') {
       const parser = new DOMParser();
       const doc = parser.parseFromString(text, 'text/html');
       rawHtml = doc.body ? sanitizeHtml(doc.body.innerHTML) : sanitizeHtml(text);
@@ -49,32 +50,114 @@ export async function readDocumentFile(file) {
 }
 
 /**
- * Automatically splits multi-page content into physical A4 pages
+ * Automatically splits multi-page content into physical/visual pages
  * using <div class="rta-page-break-print"> page separators.
  */
-export function autoPaginateHtml(html, wordsPerPage = 420) {
+export function autoPaginateHtml(html, wordsPerPage = 320) {
   if (!html) return '<p><br></p>';
-  if (html.includes('rta-page-break-print')) return html;
 
-  // Split content by block-level HTML tags
-  const blocks = html.match(/<(p|h[1-6]|table|blockquote|ul|ol|pre|div)[^>]*>[\s\S]*?<\/\1>/gi);
-  if (!blocks || blocks.length <= 8) return html;
+  // Split into sections by existing page breaks if any exist
+  const hasBreaks = html.includes('rta-page-break-print') || html.includes('rta-page-break');
+  if (hasBreaks) {
+    const breakRegex = /<div class="rta-page-break(?:-print)?"[^>]*><\/div>/gi;
+    const rawSections = html.split(breakRegex);
+    let anyNeedsSplit = false;
+    for (const sec of rawSections) {
+      if (!sec.trim()) continue;
+      const plainText = sec.replace(/<[^>]+>/g, ' ').trim();
+      const words = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+      if (words > wordsPerPage) {
+        anyNeedsSplit = true;
+        break;
+      }
+    }
+
+    if (!anyNeedsSplit) {
+      return html;
+    }
+
+    const paginatedSections = [];
+    for (const sec of rawSections) {
+      if (!sec.trim()) continue;
+      const sub = paginateSingleSection(sec, wordsPerPage);
+      paginatedSections.push(sub.join('\n<div class="rta-page-break-print" style="page-break-after:always;"></div>\n'));
+    }
+
+    if (paginatedSections.length <= 1) return paginatedSections[0] || html;
+    return paginatedSections.join('\n<div class="rta-page-break-print" style="page-break-after:always;"></div>\n');
+  }
+
+  const pages = paginateSingleSection(html, wordsPerPage);
+  if (pages.length <= 1) return html;
+  return pages.join('\n<div class="rta-page-break-print" style="page-break-after:always;"></div>\n');
+}
+
+function paginateSingleSection(sectionHtml, wordsPerPage = 320) {
+  if (!sectionHtml || !sectionHtml.trim()) return [];
+
+  // 1. In browser environments with DOMParser, split based on parsed DOM structure
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<body>${sectionHtml}</body>`, 'text/html');
+      const children = Array.from(doc.body.children);
+      if (children.length > 0) {
+        const pages = [];
+        let curElems = [];
+        let curWeight = 0;
+
+        for (const el of children) {
+          const text = el.textContent || '';
+          const wordCount = text.split(/\s+/).filter(Boolean).length;
+          let weight = wordCount;
+
+          if (el.nodeName === 'TABLE' || el.classList.contains('rta-table-wrap')) {
+            const rows = el.querySelectorAll ? el.querySelectorAll('tr').length : 3;
+            weight = Math.max(80, rows * 25);
+          } else if (el.nodeName === 'FIGURE' || el.querySelector?.('img')) {
+            weight = Math.max(90, weight + 70);
+          }
+
+          if (curWeight > 0 && (curWeight + weight > wordsPerPage || curElems.length >= 14)) {
+            pages.push(curElems.map(e => e.outerHTML).join('\n'));
+            curElems = [el];
+            curWeight = weight;
+          } else {
+            curElems.push(el);
+            curWeight += weight;
+          }
+        }
+
+        if (curElems.length > 0) {
+          pages.push(curElems.map(e => e.outerHTML).join('\n'));
+        }
+
+        if (pages.length > 0) return pages;
+      }
+    } catch {}
+  }
+
+  // 2. Regex fallback for Node.js test environments or non-DOM parsers
+  const blocks = sectionHtml.match(/<(p|h[1-6]|table|blockquote|ul|ol|pre|div|figure)[^>]*>[\s\S]*?<\/\1>/gi);
+  if (!blocks || blocks.length <= 4) return [sectionHtml];
 
   let pages = [];
   let currentWords = 0;
   let currentPageBlocks = [];
 
-  for (const block of blocks) {
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
     const plainText = block.replace(/<[^>]+>/g, ' ').trim();
     const wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+    const weight = block.includes('<table') ? Math.max(80, wordCount) : (block.includes('<img') ? Math.max(90, wordCount) : wordCount);
 
-    if (currentWords > 0 && (currentWords + wordCount > wordsPerPage || currentPageBlocks.length >= 14)) {
+    if (currentWords > 0 && (currentWords + weight > wordsPerPage || currentPageBlocks.length >= 14)) {
       pages.push(currentPageBlocks.join('\n'));
       currentPageBlocks = [block];
-      currentWords = wordCount;
+      currentWords = weight;
     } else {
       currentPageBlocks.push(block);
-      currentWords += wordCount;
+      currentWords += weight;
     }
   }
 
@@ -82,28 +165,49 @@ export function autoPaginateHtml(html, wordsPerPage = 420) {
     pages.push(currentPageBlocks.join('\n'));
   }
 
-  if (pages.length <= 1) return html;
-  return pages.join('\n<div class="rta-page-break-print" style="page-break-after:always;"></div>\n');
+  return pages.length > 0 ? pages : [sectionHtml];
 }
 
 /**
- * Extracts and parses word/document.xml from a .docx ArrayBuffer without external dependencies.
+ * Extracts and parses word/document.xml, relationships, and embedded media from a .docx.
  */
 export async function parseDocxFile(fileOrBlob) {
-  const buffer = await fileOrBlob.arrayBuffer();
-  const xmlString = await extractWordDocumentXml(buffer);
+  let buffer;
+  if (fileOrBlob && typeof fileOrBlob.arrayBuffer === 'function') {
+    buffer = await fileOrBlob.arrayBuffer();
+  } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(fileOrBlob)) {
+    buffer = fileOrBlob.buffer.slice(fileOrBlob.byteOffset, fileOrBlob.byteOffset + fileOrBlob.byteLength);
+  } else if (fileOrBlob instanceof ArrayBuffer) {
+    buffer = fileOrBlob;
+  } else if (fileOrBlob && fileOrBlob.buffer instanceof ArrayBuffer) {
+    buffer = fileOrBlob.buffer;
+  } else if (typeof FileReader !== 'undefined') {
+    buffer = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(e);
+      reader.readAsArrayBuffer(fileOrBlob);
+    });
+  } else {
+    throw new Error('Unsupported file/buffer format for DOCX parsing.');
+  }
 
-  if (!xmlString) {
+  const pkg = await extractDocxPackage(buffer);
+
+  if (!pkg.documentXml) {
     throw new Error('Unable to locate word/document.xml in the DOCX package.');
   }
 
-  return convertWordXmlToHtml(xmlString);
+  return convertWordXmlToHtml(pkg.documentXml, pkg.relationships, pkg.media);
 }
 
 /**
- * Pure JavaScript ZIP Central-Directory & Local-Header parser
+ * Pure JavaScript ZIP Package extractor that parses:
+ * - word/document.xml
+ * - word/_rels/document.xml.rels
+ * - word/media/* (embedded images)
  */
-async function extractWordDocumentXml(buffer) {
+async function extractDocxPackage(buffer) {
   const view = new DataView(buffer);
   const byteLength = buffer.byteLength;
 
@@ -117,61 +221,107 @@ async function extractWordDocumentXml(buffer) {
     }
   }
 
-  if (eocdOffset === -1) {
-    // Fallback: search local file headers directly from start
-    return await extractViaLocalHeaders(buffer, view);
-  }
+  const result = {
+    documentXml: null,
+    relationships: new Map(), // rId -> { target, type }
+    media: new Map()          // normalized path -> dataUrl
+  };
 
-  const totalEntries = view.getUint16(eocdOffset + 10, true);
-  const cdOffset = view.getUint32(eocdOffset + 16, true);
-
-  let currentOffset = cdOffset;
   const decoder = new TextDecoder('utf-8');
+  let relsXml = null;
 
-  for (let i = 0; i < totalEntries && currentOffset < eocdOffset; i++) {
-    if (view.getUint32(currentOffset, true) !== 0x02014b50) break; // PK\x01\x02
+  if (eocdOffset !== -1) {
+    const totalEntries = view.getUint16(eocdOffset + 10, true);
+    const cdOffset = view.getUint32(eocdOffset + 16, true);
+    let currentOffset = cdOffset;
 
-    const compressionMethod = view.getUint16(currentOffset + 10, true);
-    const compressedSize = view.getUint32(currentOffset + 20, true);
-    const nameLen = view.getUint16(currentOffset + 28, true);
-    const extraLen = view.getUint16(currentOffset + 30, true);
-    const commentLen = view.getUint16(currentOffset + 32, true);
-    const localHeaderOffset = view.getUint32(currentOffset + 42, true);
+    for (let i = 0; i < totalEntries && currentOffset < eocdOffset; i++) {
+      if (view.getUint32(currentOffset, true) !== 0x02014b50) break; // PK\x01\x02
 
-    const nameBytes = new Uint8Array(buffer, currentOffset + 46, nameLen);
-    const fileName = decoder.decode(nameBytes);
+      const compressionMethod = view.getUint16(currentOffset + 10, true);
+      const compressedSize = view.getUint32(currentOffset + 20, true);
+      const uncompressedSize = view.getUint32(currentOffset + 24, true);
+      const nameLen = view.getUint16(currentOffset + 28, true);
+      const extraLen = view.getUint16(currentOffset + 30, true);
+      const commentLen = view.getUint16(currentOffset + 32, true);
+      const localHeaderOffset = view.getUint32(currentOffset + 42, true);
 
-    if (fileName === 'word/document.xml') {
-      // Find payload data inside local header
+      const nameBytes = new Uint8Array(buffer, currentOffset + 46, nameLen);
+      const fileName = decoder.decode(nameBytes);
+
+      // Locate data in local header
       const localNameLen = view.getUint16(localHeaderOffset + 26, true);
       const localExtraLen = view.getUint16(localHeaderOffset + 28, true);
       const dataOffset = localHeaderOffset + 30 + localNameLen + localExtraLen;
-
       const compressedBytes = new Uint8Array(buffer, dataOffset, compressedSize);
 
-      if (compressionMethod === 0) {
-        return decoder.decode(compressedBytes);
-      } else if (compressionMethod === 8) {
-        return await decompressRawDeflate(compressedBytes);
+      if (fileName === 'word/document.xml') {
+        result.documentXml = await decompressBytes(compressedBytes, compressionMethod, uncompressedSize);
+      } else if (fileName === 'word/_rels/document.xml.rels') {
+        relsXml = await decompressBytes(compressedBytes, compressionMethod, uncompressedSize);
+      } else if (fileName.startsWith('word/media/') && compressedSize > 0) {
+        try {
+          const rawBytes = await decompressToUint8Array(compressedBytes, compressionMethod, uncompressedSize);
+          const mime = getMimeTypeFromFilename(fileName);
+          const dataUrl = `data:${mime};base64,${uint8ArrayToBase64(rawBytes)}`;
+          result.media.set(fileName, dataUrl);
+          // Also set simple basename (e.g. "image1.png")
+          const baseName = fileName.replace('word/media/', '');
+          result.media.set(baseName, dataUrl);
+          result.media.set(`media/${baseName}`, dataUrl);
+        } catch (err) {
+          console.warn(`[richtext-all] Failed to decompress image ${fileName}:`, err);
+        }
       }
-    }
 
-    currentOffset += 46 + nameLen + extraLen + commentLen;
+      currentOffset += 46 + nameLen + extraLen + commentLen;
+    }
   }
 
-  return await extractViaLocalHeaders(buffer, view);
+  // Fallback if EOCD was missing or documentXml not found
+  if (!result.documentXml) {
+    const fallback = await extractViaLocalHeadersAll(buffer, view);
+    result.documentXml = fallback.documentXml;
+    if (fallback.relsXml) relsXml = fallback.relsXml;
+    fallback.media.forEach((v, k) => result.media.set(k, v));
+  }
+
+  // Parse Relationships XML
+  if (relsXml) {
+    try {
+      const parser = new DOMParser();
+      const rDoc = parser.parseFromString(relsXml, 'text/xml');
+      const relElements = rDoc.getElementsByTagName('Relationship');
+      for (let r = 0; r < relElements.length; r++) {
+        const el = relElements[r];
+        const id = el.getAttribute('Id');
+        const target = el.getAttribute('Target') || '';
+        const type = el.getAttribute('Type') || '';
+        if (id) {
+          result.relationships.set(id, { id, target, type });
+        }
+      }
+    } catch (err) {
+      console.warn('[richtext-all] Error parsing document.xml.rels:', err);
+    }
+  }
+
+  return result;
 }
 
 /**
- * Fallback local header scanner for non-standard ZIP archives
+ * Fallback scanner for non-standard ZIP archives
  */
-async function extractViaLocalHeaders(buffer, view) {
+async function extractViaLocalHeadersAll(buffer, view) {
   let offset = 0;
   const decoder = new TextDecoder('utf-8');
+  const res = { documentXml: null, relsXml: null, media: new Map() };
+
   while (offset < buffer.byteLength - 30) {
     if (view.getUint32(offset, true) === 0x04034b50) { // PK\x03\x04
       const method = view.getUint16(offset + 8, true);
       const compSize = view.getUint32(offset + 18, true);
+      const uncompSize = view.getUint32(offset + 22, true);
       const nameLen = view.getUint16(offset + 26, true);
       const extraLen = view.getUint16(offset + 28, true);
 
@@ -181,11 +331,21 @@ async function extractViaLocalHeaders(buffer, view) {
 
       if (fileName === 'word/document.xml') {
         const compressedBytes = new Uint8Array(buffer, dataOffset, compSize);
-        if (method === 0) {
-          return decoder.decode(compressedBytes);
-        } else if (method === 8) {
-          return await decompressRawDeflate(compressedBytes);
-        }
+        res.documentXml = await decompressBytes(compressedBytes, method, uncompSize);
+      } else if (fileName === 'word/_rels/document.xml.rels') {
+        const compressedBytes = new Uint8Array(buffer, dataOffset, compSize);
+        res.relsXml = await decompressBytes(compressedBytes, method, uncompSize);
+      } else if (fileName.startsWith('word/media/') && compSize > 0) {
+        try {
+          const compressedBytes = new Uint8Array(buffer, dataOffset, compSize);
+          const rawBytes = await decompressToUint8Array(compressedBytes, method, uncompSize);
+          const mime = getMimeTypeFromFilename(fileName);
+          const dataUrl = `data:${mime};base64,${uint8ArrayToBase64(rawBytes)}`;
+          res.media.set(fileName, dataUrl);
+          const baseName = fileName.replace('word/media/', '');
+          res.media.set(baseName, dataUrl);
+          res.media.set(`media/${baseName}`, dataUrl);
+        } catch {}
       }
 
       offset = dataOffset + compSize;
@@ -193,7 +353,47 @@ async function extractViaLocalHeaders(buffer, view) {
       offset++;
     }
   }
+  return res;
+}
+
+async function decompressBytes(compressedBytes, method, uncompressedSize) {
+  if (method === 0) {
+    return new TextDecoder('utf-8').decode(compressedBytes);
+  } else if (method === 8) {
+    return await decompressRawDeflate(compressedBytes);
+  }
   return null;
+}
+
+async function decompressToUint8Array(compressedBytes, method, uncompressedSize) {
+  if (method === 0) {
+    return compressedBytes;
+  } else if (method === 8) {
+    if (typeof DecompressionStream !== 'undefined') {
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      writer.write(compressedBytes);
+      writer.close();
+
+      const reader = ds.readable.getReader();
+      const chunks = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);
+      const result = new Uint8Array(totalLen);
+      let pos = 0;
+      for (const chunk of chunks) {
+        result.set(chunk, pos);
+        pos += chunk.length;
+      }
+      return result;
+    }
+    throw new Error('DecompressionStream is not supported');
+  }
+  return compressedBytes;
 }
 
 /**
@@ -228,10 +428,35 @@ async function decompressRawDeflate(compressedBytes) {
   throw new Error('DecompressionStream is not supported in this browser environment.');
 }
 
+function uint8ArrayToBase64(bytes) {
+  let binary = '';
+  const len = bytes.byteLength;
+  const chunk = 8192;
+  for (let i = 0; i < len; i += chunk) {
+    const sub = bytes.subarray(i, Math.min(i + chunk, len));
+    binary += String.fromCharCode.apply(null, sub);
+  }
+  return btoa(binary);
+}
+
+function getMimeTypeFromFilename(filename) {
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  switch (ext) {
+    case 'png': return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'gif': return 'image/gif';
+    case 'svg': return 'image/svg+xml';
+    case 'webp': return 'image/webp';
+    case 'bmp': return 'image/bmp';
+    default: return 'image/png';
+  }
+}
+
 /**
- * Converts Word document.xml DOM tree to rich HTML
+ * Converts Word document.xml DOM tree to rich HTML, embedding real images and hyperlinks.
  */
-function convertWordXmlToHtml(xmlText) {
+function convertWordXmlToHtml(xmlText, relationships = new Map(), mediaMap = new Map()) {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
   const body = xmlDoc.getElementsByTagName('w:body')[0];
@@ -239,13 +464,14 @@ function convertWordXmlToHtml(xmlText) {
   if (!body) return '<p><br></p>';
 
   const htmlParts = [];
+  const totalNodes = body.childNodes.length;
 
-  for (let i = 0; i < body.childNodes.length; i++) {
+  for (let i = 0; i < totalNodes; i++) {
     const node = body.childNodes[i];
     if (node.nodeName === 'w:p') {
-      htmlParts.push(parseWordParagraph(node));
+      htmlParts.push(parseWordParagraph(node, relationships, mediaMap));
     } else if (node.nodeName === 'w:tbl') {
-      htmlParts.push(parseWordTable(node));
+      htmlParts.push(parseWordTable(node, relationships, mediaMap));
     }
   }
 
@@ -253,8 +479,7 @@ function convertWordXmlToHtml(xmlText) {
   return resultHtml.trim() ? resultHtml : '<p><br></p>';
 }
 
-function parseWordParagraph(pNode) {
-  // Check style (Headings h1-h6, Blockquote, Lists)
+function parseWordParagraph(pNode, relationships, mediaMap) {
   const pPr = pNode.getElementsByTagName('w:pPr')[0];
   let tag = 'p';
   let pageBreakPrefix = '';
@@ -276,7 +501,7 @@ function parseWordParagraph(pNode) {
     const numPr = pPr.getElementsByTagName('w:numPr')[0];
     if (numPr) tag = 'li';
 
-    // Word page break before paragraph
+    // Explicit Word page break before paragraph
     if (pPr.getElementsByTagName('w:pageBreakBefore').length > 0) {
       pageBreakPrefix = '\n<div class="rta-page-break-print" style="page-break-after:always;"></div>\n';
     }
@@ -286,13 +511,22 @@ function parseWordParagraph(pNode) {
   for (let i = 0; i < pNode.childNodes.length; i++) {
     const child = pNode.childNodes[i];
     if (child.nodeName === 'w:r') {
-      runsHtml.push(parseWordRun(child));
+      runsHtml.push(parseWordRun(child, relationships, mediaMap));
     } else if (child.nodeName === 'w:hyperlink') {
+      const rId = child.getAttribute('r:id') || child.getAttribute('id');
+      let href = '#';
+      if (rId && relationships.has(rId)) {
+        href = relationships.get(rId).target || '#';
+      }
+      const safeHref = sanitizeUrl(href);
       const linkRuns = [];
       child.childNodes.forEach(c => {
-        if (c.nodeName === 'w:r') linkRuns.push(parseWordRun(c));
+        if (c.nodeName === 'w:r') linkRuns.push(parseWordRun(c, relationships, mediaMap));
       });
-      runsHtml.push(`<a href="#">${linkRuns.join('')}</a>`);
+      runsHtml.push(`<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${linkRuns.join('') || safeHref}</a>`);
+    } else if (child.nodeName === 'w:drawing' || child.nodeName === 'w:pict') {
+      const imgHtml = extractImageFromDrawing(child, relationships, mediaMap);
+      if (imgHtml) runsHtml.push(imgHtml);
     }
   }
 
@@ -301,7 +535,7 @@ function parseWordParagraph(pNode) {
   return pageBreakPrefix + `<${tag}>${content}</${tag}>`;
 }
 
-function parseWordRun(rNode) {
+function parseWordRun(rNode, relationships, mediaMap) {
   const rPr = rNode.getElementsByTagName('w:rPr')[0];
   let isBold = false;
   let isItalic = false;
@@ -323,6 +557,8 @@ function parseWordRun(rNode) {
   }
 
   let text = '';
+  let embeddedImages = '';
+
   for (let i = 0; i < rNode.childNodes.length; i++) {
     const child = rNode.childNodes[i];
     if (child.nodeName === 'w:t') {
@@ -338,24 +574,62 @@ function parseWordRun(rNode) {
       text += '\n<div class="rta-page-break-print" style="page-break-after:always;"></div>\n';
     } else if (child.nodeName === 'w:tab') {
       text += '&nbsp;&nbsp;&nbsp;&nbsp;';
+    } else if (child.nodeName === 'w:drawing' || child.nodeName === 'w:pict') {
+      const imgHtml = extractImageFromDrawing(child, relationships, mediaMap);
+      if (imgHtml) embeddedImages += imgHtml;
     }
   }
 
-  if (!text) return '';
+  if (!text && !embeddedImages) return '';
 
   let out = text;
-  if (isBold) out = `<strong>${out}</strong>`;
-  if (isItalic) out = `<em>${out}</em>`;
-  if (isUnderline) out = `<u>${out}</u>`;
-  if (isStrike) out = `<s>${out}</s>`;
-  if (color) out = `<span style="color: ${color};">${out}</span>`;
+  if (out) {
+    if (isBold) out = `<strong>${out}</strong>`;
+    if (isItalic) out = `<em>${out}</em>`;
+    if (isUnderline) out = `<u>${out}</u>`;
+    if (isStrike) out = `<s>${out}</s>`;
+    if (color) out = `<span style="color: ${color};">${out}</span>`;
+  }
 
-  return out;
+  return out + embeddedImages;
 }
 
-function parseWordTable(tblNode) {
+/**
+ * Extracts embedded images from drawing or pict XML nodes.
+ */
+function extractImageFromDrawing(drawNode, relationships, mediaMap) {
+  // 1. Look for modern <a:blip r:embed="rIdX" />
+  const blips = drawNode.getElementsByTagName('a:blip');
+  for (let i = 0; i < blips.length; i++) {
+    const rId = blips[i].getAttribute('r:embed') || blips[i].getAttribute('r:link');
+    if (rId && relationships.has(rId)) {
+      const target = relationships.get(rId).target || '';
+      const imgUrl = mediaMap.get(target) || mediaMap.get(`word/${target}`) || mediaMap.get(target.replace(/^\/?word\//, '')) || target;
+      if (imgUrl) {
+        return `<figure class="rta-image-wrap"><img src="${imgUrl}" alt="Document Image" class="rta-image" /></figure>`;
+      }
+    }
+  }
+
+  // 2. Look for legacy VML <v:imagedata r:id="rIdX" />
+  const imgDatas = drawNode.getElementsByTagName('v:imagedata');
+  for (let i = 0; i < imgDatas.length; i++) {
+    const rId = imgDatas[i].getAttribute('r:id');
+    if (rId && relationships.has(rId)) {
+      const target = relationships.get(rId).target || '';
+      const imgUrl = mediaMap.get(target) || mediaMap.get(`word/${target}`) || mediaMap.get(target.replace(/^\/?word\//, '')) || target;
+      if (imgUrl) {
+        return `<figure class="rta-image-wrap"><img src="${imgUrl}" alt="Document Image" class="rta-image" /></figure>`;
+      }
+    }
+  }
+
+  return '';
+}
+
+function parseWordTable(tblNode, relationships, mediaMap) {
   const rows = tblNode.getElementsByTagName('w:tr');
-  let tableHtml = '<table class="rta-table"><tbody>';
+  let tableHtml = '<div class="rta-table-wrap"><table class="rta-table"><tbody>';
 
   for (let r = 0; r < rows.length; r++) {
     tableHtml += '<tr>';
@@ -365,24 +639,39 @@ function parseWordTable(tblNode) {
       const paras = cells[c].getElementsByTagName('w:p');
       let cellText = '';
       for (let p = 0; p < paras.length; p++) {
-        cellText += parseWordParagraph(paras[p]);
+        cellText += parseWordParagraph(paras[p], relationships, mediaMap);
       }
       tableHtml += `<${tag}>${cellText || '&nbsp;'}</${tag}>`;
     }
     tableHtml += '</tr>';
   }
 
-  tableHtml += '</tbody></table>';
+  tableHtml += '</tbody></table></div>';
   return tableHtml;
 }
 
-function readFileAsText(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target.result);
-    reader.onerror = (e) => reject(e);
-    reader.readAsText(file);
-  });
+async function readFileAsText(file) {
+  if (file && typeof file.text === 'function') {
+    return await file.text();
+  }
+  if (typeof FileReader !== 'undefined') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(e);
+      reader.readAsText(file);
+    });
+  }
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
+    return file.toString('utf-8');
+  }
+  if (file instanceof ArrayBuffer) {
+    return new TextDecoder('utf-8').decode(file);
+  }
+  if (typeof file === 'string') {
+    return file;
+  }
+  return String(file || '');
 }
 
 function markdownToHtmlSimple(md) {

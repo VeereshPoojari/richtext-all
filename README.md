@@ -78,24 +78,34 @@ Or via CDN:
   - **Unified View** showing deletions in red strike-through (`-Red`) and additions in green underline (`+Green`).
   - One-click rollback to restore any previous document revision.
 
-### 5. 👥 Collaborator Identity & User Switcher
-- Assign each team member a distinct name and author color.
-- Dropdown user switcher with custom color picker dialog (`+ User`).
-- Metadata persists across all comments, suggestions, and cursor badges.
+### 5. 💬 Threaded Comments & Collaborative Discussion
+- **Multi-User Replies**: Any collaborator can post threaded replies directly inside gutter cards or via API.
+- **Resolve & Delete**: Mark comments as resolved with one click (stored with `resolvedBy` and `resolvedAt` audit metadata) or delete obsolete discussion threads.
+- **Filterable Discussion**: Query active or resolved threads at any time with `editor.getComments({ resolved: false })`.
 
-### 6. 📂 Native Word (.docx) Import & Export
-- Drag and drop or browse `.docx` files to parse and edit directly in the browser.
-- Handcrafted XML reader parses `word/document.xml` preserving headings, paragraphs, bold, italic, lists, and tables without external dependencies.
+### 6. ✏️ Track Changes Suggestions & Reviewer Acceptance Workflow
+- **Suggesting Mode**: Direct edits are transformed into clean visual suggestions (green additions, red strikethrough deletions).
+- **Reviewer Tracking**: When suggestions are accepted or rejected, the system logs the reviewer's ID, name, color, and timestamp (`reviewedBy`, `reviewedAt`).
+- **Granular Filtering**: Filter pending, accepted, or rejected suggestions via `editor.getSuggestions({ status: 'pending' })`.
+
+### 7. 📂 High-Performance Word (.docx) Import (1000+ Pages with Images & Links)
+- **Zero-Freeze Continuous Mode**: Automatically detects large documents (>30 pages) and switches to an ultra-efficient continuous sheet with visual print-break dividers. Easily loads **1000+ page documents** at smooth 60 FPS without DOM memory bloat.
+- **Embedded Images & Links**: Built-in zero-dependency ZIP & XML engine extracts all embedded media (`word/media/*`) into base64 images and resolves all hyperlinks (`word/_rels/document.xml.rels`).
 - Export clean `.docx`, `.md`, `.html`, `.json`, and plain `.txt` files.
 
-### 7. 🎛️ Fully Configurable Toolbar: Defaults & Granular Show/Hide
+### 8. 👥 Collaborator Identity & User Switcher
+- Assign each team member a distinct name and author color.
+- Dropdown user switcher with custom color picker dialog (`+ User`).
+- Metadata persists across all comments, replies, suggestions, and cursor badges.
+
+### 9. 🎛️ Fully Configurable Toolbar: Defaults & Granular Show/Hide
 - **Customizable Default Values**: Set defaults for every toolbar control on initialization or at runtime (`style`, `fontSize`, `lineHeight`, `color`, `highlight`, `layout`, `margin`, `mode`, `tableRows`, `tableCols`).
 - **Complete Toolbar Visibility**: Toggle the entire ribbon with `editor.hideToolbar()` / `editor.showToolbar()` or initialize with `toolbar: false` or `toolbar: { visible: false }`.
 - **Granular Item Visibility**: Show or hide specific buttons, dropdowns, or feature groups with `hiddenItems: ['upload', 'table']`, `show: { mode: false }`, or whitelist with `items: ['style', 'bold', 'italic']`.
 - **Dynamic Runtime Controls**: Freely call `editor.hideToolbarItem(key)`, `editor.showToolbarItem(key)`, `editor.toggleToolbarItem(key)`, or `editor.setToolbarDefaults(defaults)`.
 - **Automatic Group & Divider Management**: Dividers and empty groups cleanly auto-collapse when child items are hidden.
 
-### 8. ⚡ Zero-Config Real-Time Multiplayer Collaboration
+### 10. ⚡ Zero-Config Real-Time Multiplayer Collaboration
 - **Zero-Server Multi-Tab Sync (`BroadcastChannel`)**: Open 2, 3, or 5 tabs or windows in your browser—all edits, typing tooltips, and live colored cursors sync **instantly with zero configuration and zero backend needed**.
 - **Cross-Browser & Network Sync (`WebSocket`)**: Seamlessly sync across different browsers (Chrome, Firefox, Edge, Safari) and different computers on your network by passing `collab: { serverUrl: 'ws://localhost:1234' }`.
 - **Built-in Zero-Dependency Relay Server**: Launch the included WebSocket server in one command with `npm run collab` (pure Node.js standard library, 0 external npm dependencies).
@@ -369,13 +379,24 @@ const editor = new RichEditor('#editor', {
 | `editor.getComparisonList()` | `Array<object>` | Returns chronological timeline of versions with incremental diff stats. |
 | `editor.showVersionComparison(idA?, idB?)` | `void` | Opens interactive visual side-by-side / unified diff visualizer modal. |
 | `editor.showVersionHistory()` | `void` | Opens interactive version checkpoints modal. |
-| `editor.getComments()` / `editor.setComments(list)` | `Array<object>` | Gets or batch sets all comments in the document. |
-| `editor.getSuggestions()` / `editor.setSuggestions(list)` | `Array<object>` | Gets or batch sets all tracked changes/suggestions. |
+| `editor.addComment(text)` | `object` | Adds a comment anchored to the active text selection. |
+| `editor.replyComment(commentId, text, user?)` | `object \| null` | Adds a threaded reply to an existing comment. |
+| `editor.deleteCommentReply(commentId, replyId)` | `object \| false` | Removes an individual reply from a comment thread. |
+| `editor.resolveComment(commentId, resolvedBy?)` | `object \| null` | Resolves a comment, removes document highlight, and logs reviewer audit. |
+| `editor.deleteComment(commentId)` | `object \| false` | Permanently deletes a comment and unwraps highlighted text. |
+| `editor.clearAllAnnotations()` | `object` | Permanently clears all comments & suggestions, unwraps DOM marks, and returns full audit data `{ deletedComments, deletedSuggestions, totalComments, totalSuggestions, timestamp }`. |
+| `editor.clearCommentsAndSuggestions()` | `object` | Alias for `editor.clearAllAnnotations()`. |
+| `editor.getComments(filter?)` | `Array<object>` | Gets comments with optional filter: `{ resolved: true \| false }`. |
+| `editor.setComments(list)` | `Array<object>` | Batch sets all comments in the document. |
+| `editor.acceptSuggestion(id, reviewer?)` | `object \| null` | Accepts a suggestion, applies DOM changes, and records reviewer metadata. |
+| `editor.rejectSuggestion(id, reviewer?)` | `object \| null` | Rejects a suggestion, unwraps/restores text, and records reviewer metadata. |
+| `editor.getSuggestions(filter?)` | `Array<object>` | Gets suggestions with optional filter: `{ status: 'pending' \| 'accepted' \| 'rejected' }`. |
+| `editor.setSuggestions(list)` | `Array<object>` | Batch sets all tracked suggestions. |
 | `editor.exportContextJSON(filename?)` | `void` | Downloads complete developer document context as `.json`. |
 | `editor.addUser(name, color)` | `object` | Registers and selects a new collaborator. |
 | `editor.setUser(userOrId)` | `object` | Switches active author identity. |
-| `editor.importDocument(file)` | `Promise<string>` | Imports `.docx`, `.doc`, `.md`, `.html`, `.txt`, or `.json` context. |
-| `editor.browseAndOpen()` | `Promise<string>` | Prompts user file picker to open a document. |
+| `editor.importDocument(file, options?)` | `Promise<string \| null>` | Imports `.docx`, `.doc`, `.md`, `.html`, `.txt`, or `.json`. Prompts confirmation dialog if comments/suggestions exist before clearing them. |
+| `editor.browseAndOpen(options?)` | `Promise<string \| null>` | Prompts file picker with overwrite confirmation protection. |
 | `editor.getHTML()` | `string` | Returns clean document HTML. |
 | `editor.getMarkdown()` | `string` | Converts document to Markdown. |
 | `editor.getJSON()` | `object` | Returns structured JSON AST. |
@@ -383,10 +404,10 @@ const editor = new RichEditor('#editor', {
 
 ---
 
-### 📦 Developer-Friendly Document Context & Version Comparison API
+### 📦 Developer-Friendly Document Context & Workflow API
 
 ```javascript
-// 1. Export Complete Document Context Bundle
+// 1. Export Complete Document Context Bundle (Ready for Database / REST API)
 const bundle = editor.getData();
 console.log(bundle);
 /*
@@ -395,8 +416,28 @@ console.log(bundle);
   metadata: { title: 'Q4 Product Spec', author: 'Veeresh Poojari', stats: { words: 420, chars: 2800 } },
   settings: { pageLayout: 'a4', gutterPosition: 'both', mode: 'editing' },
   content: { html: '...', markdown: '...', text: '...', json: { ... } },
-  comments: [ ... ],
-  suggestions: [ ... ],
+  comments: [
+    {
+      id: 'c-101',
+      text: 'Please clarify this milestone',
+      author: 'Veeresh',
+      resolved: false,
+      replies: [
+        { id: 'rep-1', text: 'Updated with technical details', author: 'Alex', timestamp: '14:20' }
+      ]
+    }
+  ],
+  suggestions: [
+    {
+      id: 's-202',
+      type: 'add',
+      text: 'real-time multi-tab',
+      author: 'Alex',
+      status: 'accepted',
+      reviewedBy: { id: 'usr-lead', name: 'Tech Lead', color: '#16a34a' },
+      reviewedAt: '2026-10-08T12:00:00.000Z'
+    }
+  ],
   versions: [ ... ],
   comparisonList: [ ... ],
   users: [ ... ]
@@ -406,26 +447,68 @@ console.log(bundle);
 // 2. Restore or Load Into Any Editor Instance
 editor.setData(bundle);
 
-// 3. Save Named Version Checkpoints
+// 3. Threaded Comments & Discussion API
+const comment = editor.addComment('Review paragraph 3');
+editor.replyComment(comment.id, 'Looks good to me!', { name: 'Sarah', color: '#ec4899' });
+editor.resolveComment(comment.id, 'Veeresh (Lead)'); // Resolves and unhighlights text
+const activeComments = editor.getComments({ resolved: false }); // Query unresolved only
+
+// 4. Track Changes Suggestions & Reviewer Acceptance API
+editor.setMode('suggesting'); // Swaps to suggesting mode
+// When reviewer approves or rejects:
+editor.acceptSuggestion('s-202', { id: 'usr-admin', name: 'Lead Reviewer', color: '#10b981' });
+editor.rejectSuggestion('s-203', { id: 'usr-admin', name: 'Lead Reviewer', color: '#ef4444' });
+const pendingSuggestions = editor.getSuggestions({ status: 'pending' });
+
+// 5. Save Named Version Checkpoints & Visual Diffs
 const v1 = editor.saveVersion('v1.0 Baseline', 'Initial draft before peer review');
 const v2 = editor.saveVersion('v1.1 Review Edits', 'Addressed comments from tech lead');
-
-// 4. Programmatic Word-Level Version Comparison & Diffs
 const comparison = editor.compareVersions(v1.id, v2.id); // Or compare against 'live'
 console.log(comparison.stats);       // { additions: 14, deletions: 3, unchanged: 180, totalChanges: 17 }
 console.log(comparison.leftHtml);    // Baseline with deletions highlighted in red
 console.log(comparison.rightHtml);   // Target with additions highlighted in green
 console.log(comparison.unifiedHtml); // Combined inline diff
 
-// 5. Incremental Comparison List (Audit Timeline)
-const auditList = editor.getComparisonList();
-auditList.forEach(item => {
-  console.log(`${item.title}: +${item.stats?.additions || 0} / -${item.stats?.deletions || 0}`);
+// 6. Opening Documents with Overwrite Confirmation & Database Sync
+// When opening a DOCX with active comments/suggestions, a styled modal warns the user
+// that all existing annotations will be permanently deleted.
+// If accepted, it deletes them and loads the new document; if cancelled, the current document is preserved.
+
+// Custom confirmation hook or bypass:
+await editor.importDocument(file, {
+  confirmOnOverwrite: true, // Set false to skip dialog if desired
+  onConfirmOverwrite: async ({ file, commentsCount, suggestionsCount }) => {
+    // Custom UI dialog (e.g. SweetAlert, AntD, Shadcn)
+    return window.confirm(`Permanently remove ${commentsCount} comments and ${suggestionsCount} suggestions?`);
+  }
 });
 
-// 6. Direct Comments & Suggestions Access
-const allComments = editor.getComments();
-const allSuggestions = editor.getSuggestions();
+// Programmatic bulk delete & database synchronization:
+const audit = editor.clearAllAnnotations();
+console.log('Audit Report:', audit);
+/*
+{
+  deletedComments: [ { id: 'c-1', text: '...', ... } ],
+  deletedSuggestions: [ { id: 's-1', ... } ],
+  totalComments: 1,
+  totalSuggestions: 1,
+  timestamp: "2026-10-08T14:30:00.000Z"
+}
+*/
+// Sync deletions with your backend database:
+if (audit.totalComments > 0) {
+  await myDatabase.comments.deleteMany({ id: { $in: audit.deletedComments.map(c => c.id) } });
+}
+if (audit.totalSuggestions > 0) {
+  await myDatabase.suggestions.deleteMany({ id: { $in: audit.deletedSuggestions.map(s => s.id) } });
+}
+
+// Or listen to the documentImported event:
+editor.on('documentImported', async ({ file, html, deletedAnnotations }) => {
+  if (deletedAnnotations && (deletedAnnotations.totalComments > 0 || deletedAnnotations.totalSuggestions > 0)) {
+    await syncDeletedAnnotationsToBackend(deletedAnnotations);
+  }
+});
 ```
 
 ---

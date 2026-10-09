@@ -11,7 +11,8 @@ export default [
       {
         file: 'dist/index.esm.js',
         format: 'es',
-        sourcemap: true
+        sourcemap: true,
+        exports: 'named'
       },
       {
         file: 'dist/index.js',
@@ -24,6 +25,7 @@ export default [
         format: 'umd',
         name: 'RichTextAll',
         sourcemap: true,
+        exports: 'named',
         plugins: [terser()]
       }
     ],
@@ -39,13 +41,14 @@ export default [
 
   // 2. React Adapter
   {
-    input: 'src/react/index.jsx',
+    input: 'src/react/index.js',
     external: ['react', 'react-dom'],
     output: [
       {
         file: 'dist/react/index.esm.js',
         format: 'es',
-        sourcemap: true
+        sourcemap: true,
+        exports: 'named'
       },
       {
         file: 'dist/react/index.js',
@@ -68,7 +71,8 @@ export default [
       {
         file: 'dist/vue/index.esm.js',
         format: 'es',
-        sourcemap: true
+        sourcemap: true,
+        exports: 'named'
       },
       {
         file: 'dist/vue/index.js',
@@ -91,7 +95,8 @@ export default [
       {
         file: 'dist/angular/index.esm.js',
         format: 'es',
-        sourcemap: true
+        sourcemap: true,
+        exports: 'named'
       },
       {
         file: 'dist/angular/index.js',

@@ -1239,6 +1239,254 @@ test('EditorCore gets and sets full document context bundle (developer data acce
   assert.strictEqual(newCore.getComments().length, 1);
   assert.strictEqual(newCore.getComments()[0].text, 'Great point');
   assert.strictEqual(newCore.getSuggestions().length, 1);
+  assert.strictEqual(newCore.isReadOnly(), false);
+});
+
+test('EditorCore comments system supports threaded replies and reply deletion', () => {
+  const core = new EditorCore({
+    user: { id: 'usr-1', name: 'Alice (Author)', color: '#2563eb' }
+  });
+
+  const comment = core.addComment('Initial proposal for chapter 1');
+  assert.ok(comment);
+  assert.strictEqual(comment.replies.length, 0);
+
+  const reply1 = core.replyComment(comment.id, 'I agree with this section', {
+    id: 'usr-2',
+    name: 'Bob (Reviewer)',
+    color: '#10b981'
+  });
+  assert.ok(reply1);
+  assert.strictEqual(reply1.author, 'Bob (Reviewer)');
+  assert.strictEqual(reply1.authorId, 'usr-2');
+  assert.strictEqual(comment.replies.length, 1);
+
+  const reply2 = core.replyComment(comment.id, 'Let us clarify paragraph 2', {
+    id: 'usr-3',
+    name: 'Charlie (Editor)',
+    color: '#f59e0b'
+  });
+  assert.strictEqual(comment.replies.length, 2);
+
+  // Test reply deletion
+  const deletedReply = core.deleteCommentReply(comment.id, reply1.id);
+  assert.ok(deletedReply);
+  assert.strictEqual(deletedReply.id, reply1.id);
+  assert.strictEqual(comment.replies.length, 1);
+  assert.strictEqual(comment.replies[0].id, reply2.id);
+
+  // Test replies group rendered structure
+  const mockGutter = { innerHTML: '', querySelectorAll: () => [] };
+  core.cardsGutter = mockGutter;
+  core.renderGutterCards();
+  assert.ok(mockGutter.innerHTML.includes('rta-comment-replies-group'));
+  assert.ok(mockGutter.innerHTML.includes('rta-replies-group-header'));
+  assert.ok(mockGutter.innerHTML.includes('rta-replies-group-drawer'));
+  assert.ok(mockGutter.innerHTML.includes('1 reply'));
+});
+
+test('EditorCore comments system supports resolving, deleting, and status filtering', () => {
+  const core = new EditorCore({
+    user: { id: 'usr-1', name: 'Alice', color: '#2563eb' }
+  });
+
+  const c1 = core.addComment('First comment to resolve');
+  const c2 = core.addComment('Second comment to keep active');
+  const c3 = core.addComment('Third comment to delete');
+
+  assert.strictEqual(core.getComments().length, 3);
+  assert.strictEqual(core.getComments({ resolved: false }).length, 3);
+  assert.strictEqual(core.getComments({ resolved: true }).length, 0);
+
+  // Resolve c1
+  core.resolveComment(c1.id, 'Alice');
+  assert.strictEqual(c1.resolved, true);
+  assert.strictEqual(c1.resolvedBy, 'Alice');
+  assert.ok(c1.resolvedAt);
+
+  assert.strictEqual(core.getComments({ resolved: true }).length, 1);
+  assert.strictEqual(core.getComments({ resolved: false }).length, 2);
+
+  // Delete c3
+  core.deleteComment(c3.id);
+  assert.strictEqual(core.getComments().length, 2);
+  assert.strictEqual(core.getComments({ resolved: false }).length, 1);
+  assert.strictEqual(core.getComments({ resolved: false })[0].id, c2.id);
+});
+
+test('EditorCore suggestions track reviewer metadata on accept and reject with filtering', () => {
+  const core = new EditorCore();
+  core.setSuggestions([
+    { id: 's-1', type: 'add', text: 'proposal draft', author: 'Bob', timestamp: '10:00' },
+    { id: 's-2', type: 'del', text: 'obsolete sentence', author: 'Charlie', timestamp: '10:05' },
+    { id: 's-3', type: 'add', text: 'extra citation', author: 'Diana', timestamp: '10:10' }
+  ]);
+
+  assert.strictEqual(core.getSuggestions({ status: 'pending' }).length, 3);
+
+  // Accept s-1 with designated reviewer
+  const accepted = core.acceptSuggestion('s-1', { id: 'usr-lead', name: 'Tech Lead', color: '#16a34a' });
+  assert.strictEqual(accepted.status, 'accepted');
+  assert.strictEqual(accepted.reviewedBy.name, 'Tech Lead');
+  assert.strictEqual(accepted.reviewedBy.id, 'usr-lead');
+  assert.ok(accepted.reviewedAt);
+
+  // Reject s-2 with reviewer
+  const rejected = core.rejectSuggestion('s-2', { id: 'usr-lead', name: 'Tech Lead', color: '#dc2626' });
+  assert.strictEqual(rejected.status, 'rejected');
+  assert.strictEqual(rejected.reviewedBy.name, 'Tech Lead');
+  assert.strictEqual(rejected.reviewedBy.id, 'usr-lead');
+  assert.ok(rejected.reviewedAt);
+
+  // Verify filtering
+  assert.strictEqual(core.getSuggestions({ status: 'accepted' }).length, 1);
+  assert.strictEqual(core.getSuggestions({ status: 'rejected' }).length, 1);
+  assert.strictEqual(core.getSuggestions({ status: 'pending' }).length, 1);
+  assert.strictEqual(core.getSuggestions({ status: 'pending' })[0].id, 's-3');
+
+  // Verify exported bundle captures reviewer audits and comment replies
+  const bundle = core.getData();
+  assert.strictEqual(bundle.suggestions.find(s => s.id === 's-1').status, 'accepted');
+  assert.strictEqual(bundle.suggestions.find(s => s.id === 's-1').reviewedBy.name, 'Tech Lead');
+});
+
+test('EditorCore splits large imported documents into physical page sheets cleanly', () => {
+  const core = new EditorCore();
+  // Simulate a 50-page imported document
+  let largeDocHtml = '';
+  for (let i = 1; i <= 50; i++) {
+    largeDocHtml += `<p>This is page content block #${i} with descriptive text.</p>`;
+    if (i < 50) {
+      largeDocHtml += `<div class="rta-page-break"></div>`;
+    }
+  }
+
+  // Setup mock DOM page sheet
+  const mockPage = {
+    innerHTML: '',
+    textContent: '',
+    innerText: '',
+    childNodes: [],
+    querySelector: () => null,
+    remove: () => {}
+  };
+  core.pages = [mockPage];
+  core.pagesContainer = { appendChild: () => {} };
+
+  core.setHTML(largeDocHtml);
+  // Must render into 50 distinct physical page sheets
+  assert.strictEqual(core.pages.length, 50);
+  assert.ok(core.pages[0].innerHTML.includes('page content block #1'));
+  assert.ok(core.pages[49].innerHTML.includes('page content block #50'));
+});
+
+test('EditorCore clearAllAnnotations() removes comments, suggestions and returns complete audit data', () => {
+  const core = new EditorCore();
+  core.setComments([
+    { id: 'c-1', text: 'First remark', author: 'Alice', timestamp: '12:00' },
+    { id: 'c-2', text: 'Second remark', author: 'Bob', timestamp: '12:05' }
+  ]);
+  core.setSuggestions([
+    { id: 's-1', type: 'add', text: 'inserted text', author: 'Charlie', timestamp: '12:10' },
+    { id: 's-2', type: 'del', text: 'deleted text', author: 'Dave', timestamp: '12:15' }
+  ]);
+
+  let annotationsClearedFired = false;
+  let commentsClearedFired = false;
+  let suggestionsClearedFired = false;
+
+  core.on('annotationsCleared', (audit) => {
+    annotationsClearedFired = true;
+    assert.strictEqual(audit.totalComments, 2);
+    assert.strictEqual(audit.totalSuggestions, 2);
+  });
+  core.on('commentsCleared', (list) => {
+    commentsClearedFired = true;
+    assert.strictEqual(list.length, 2);
+  });
+  core.on('suggestionsCleared', (list) => {
+    suggestionsClearedFired = true;
+    assert.strictEqual(list.length, 2);
+  });
+
+  const audit = core.clearAllAnnotations();
+
+  assert.strictEqual(audit.totalComments, 2);
+  assert.strictEqual(audit.totalSuggestions, 2);
+  assert.strictEqual(audit.deletedComments.length, 2);
+  assert.strictEqual(audit.deletedSuggestions.length, 2);
+  assert.strictEqual(core.getComments().length, 0);
+  assert.strictEqual(core.getSuggestions().length, 0);
+  assert.ok(annotationsClearedFired);
+  assert.ok(commentsClearedFired);
+  assert.ok(suggestionsClearedFired);
+});
+
+test('EditorCore importDocument() respects onConfirmOverwrite hook and cancellation', async () => {
+  const core = new EditorCore();
+  core.setComments([{ id: 'c-persist', text: 'Existing thread', author: 'Alice' }]);
+  core.setSuggestions([{ id: 's-persist', type: 'add', text: 'Existing proposal', author: 'Bob' }]);
+
+  let cancelFired = false;
+  core.on('importCancelled', (reason) => {
+    cancelFired = true;
+  });
+
+  // Mock file
+  const mockFile = { name: 'annual_report.docx', size: 1024 };
+
+  // Developer denies overwrite via hook
+  const resultCancelled = await core.importDocument(mockFile, {
+    onConfirmOverwrite: async ({ commentsCount, suggestionsCount }) => {
+      assert.strictEqual(commentsCount, 1);
+      assert.strictEqual(suggestionsCount, 1);
+      return false; // User clicked "Cancel"
+    }
+  });
+
+  assert.strictEqual(resultCancelled, null);
+  assert.ok(cancelFired);
+  // Comments and suggestions must be preserved intact
+  assert.strictEqual(core.getComments().length, 1);
+  assert.strictEqual(core.getSuggestions().length, 1);
+
+  // Now developer confirms overwrite via hook
+  let importedFired = false;
+  core.on('documentImported', (data) => {
+    importedFired = true;
+    assert.ok(data.deletedAnnotations);
+    assert.strictEqual(data.deletedAnnotations.totalComments, 1);
+    assert.strictEqual(data.deletedAnnotations.totalSuggestions, 1);
+  });
+
+  // Setup mock DOM page for setHTML
+  const mockPage = {
+    innerHTML: '',
+    textContent: '',
+    innerText: '',
+    childNodes: [],
+    querySelector: () => null,
+    remove: () => {}
+  };
+  core.pages = [mockPage];
+  core.pagesContainer = { appendChild: () => {} };
+
+  // Mock text file so FileReader / readAsText or readAsArrayBuffer can run or mock converter
+  const textBlob = {
+    name: 'document.txt',
+    size: 20,
+    text: async () => 'Freshly imported document content'
+  };
+
+  const resultConfirmed = await core.importDocument(textBlob, {
+    onConfirmOverwrite: async () => true
+  });
+
+  assert.ok(resultConfirmed);
+  assert.ok(importedFired);
+  // Annotations must now be completely cleared
+  assert.strictEqual(core.getComments().length, 0);
+  assert.strictEqual(core.getSuggestions().length, 0);
 });
 
 // Summary

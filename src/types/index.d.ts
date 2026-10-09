@@ -9,6 +9,7 @@ export interface CollabUser {
   id: string;
   name: string;
   color?: string;
+  avatar?: string;
 }
 
 export interface CollabOptions {
@@ -54,6 +55,143 @@ export interface ToolbarOptions {
   items?: string[];
 }
 
+export interface CommentReply {
+  id: string;
+  text: string;
+  author: string;
+  authorId?: string;
+  authorColor?: string;
+  timestamp?: string;
+  createdAt?: string;
+}
+
+export interface CommentItem {
+  id: string;
+  text: string;
+  author: string;
+  authorId?: string;
+  authorColor?: string;
+  timestamp?: string;
+  resolved?: boolean;
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  quote?: string;
+  pageNumber?: number;
+  rect?: any;
+  replies?: CommentReply[];
+}
+
+export interface SuggestionReviewer {
+  id?: string;
+  name: string;
+  color?: string;
+}
+
+export interface SuggestionItem {
+  id: string;
+  type: 'add' | 'del';
+  text: string;
+  quote?: string;
+  author: string;
+  authorId?: string;
+  authorColor?: string;
+  timestamp?: string;
+  status?: 'pending' | 'accepted' | 'rejected';
+  reviewedBy?: SuggestionReviewer | null;
+  reviewedAt?: string | null;
+}
+
+export interface ClearAnnotationsAudit {
+  deletedComments: CommentItem[];
+  deletedSuggestions: SuggestionItem[];
+  totalComments: number;
+  totalSuggestions: number;
+  timestamp: string;
+}
+
+export interface ImportDocumentOptions {
+  confirmOnOverwrite?: boolean;
+  onConfirmOverwrite?: (details: {
+    file: File | Blob;
+    commentsCount: number;
+    suggestionsCount: number;
+    comments: CommentItem[];
+    suggestions: SuggestionItem[];
+  }) => boolean | Promise<boolean>;
+}
+
+export interface VersionSnapshot {
+  id: string;
+  title: string;
+  description?: string;
+  author?: string;
+  authorId?: string;
+  timestamp: string;
+  html: string;
+  text?: string;
+  wordCount?: number;
+  isLive?: boolean;
+}
+
+export interface VersionDiffStats {
+  additions: number;
+  deletions: number;
+  totalChanges: number;
+}
+
+export interface VersionComparisonResult {
+  versionA: VersionSnapshot;
+  versionB: VersionSnapshot;
+  leftHtml: string;
+  rightHtml: string;
+  unifiedHtml: string;
+  stats: VersionDiffStats;
+}
+
+export interface ComparisonListItem {
+  version: VersionSnapshot;
+  previousVersionId: string | null;
+  stats: VersionDiffStats | null;
+}
+
+export interface DocumentMetadata {
+  title: string;
+  author: string;
+  authorId: string;
+  authorColor?: string;
+  createdAt: string;
+  updatedAt: string;
+  stats: EditorStats;
+}
+
+export interface DocumentSettings {
+  pageLayout: PageLayout;
+  gutterPosition: GutterPosition;
+  mode: string;
+  readOnly: boolean;
+}
+
+export interface DocumentContent {
+  html: string;
+  text: string;
+  markdown: string;
+  json: any;
+}
+
+export interface DocumentContextBundle {
+  schemaVersion: string;
+  exportedAt: string;
+  metadata: DocumentMetadata;
+  settings: DocumentSettings;
+  content: DocumentContent;
+  comments: CommentItem[];
+  suggestions: SuggestionItem[];
+  versions: VersionSnapshot[];
+  comparisonList: ComparisonListItem[];
+  users: CollabUser[];
+  [key: string]: any;
+}
+
 export interface RichEditorOptions {
   initialContent?: string;
   placeholder?: string;
@@ -66,6 +204,7 @@ export interface RichEditorOptions {
   slashCommand?: boolean;
   splitView?: boolean;
   statusBar?: boolean;
+  user?: CollabUser;
   collab?: CollabOptions | null;
   sync?: SyncOptions | null;
   onChange?: (html: string, stats: EditorStats) => void;
@@ -76,6 +215,10 @@ export declare class EditorCore {
   el: HTMLElement;
   options: any;
   history: any;
+  comments: CommentItem[];
+  suggestions: SuggestionItem[];
+  versions: VersionSnapshot[];
+  users: CollabUser[];
   constructor(el: HTMLElement, options?: any);
   exec(cmd: string, value?: any): void;
   getHTML(): string;
@@ -83,11 +226,58 @@ export declare class EditorCore {
   getMarkdown(): string;
   setMarkdown(md: string): void;
   getText(): string;
+  getJSON(): any;
   getStats(): EditorStats;
   setPageLayout(layout: PageLayout): void;
+  setGutterPosition(position: GutterPosition): string;
+  getGutterPosition(): GutterPosition;
+  toggleGutterPosition(): GutterPosition;
+  setReadOnly(readOnly?: boolean): boolean;
+  isReadOnly(): boolean;
   addNewPage(): HTMLElement;
   removePage(pageNumber: number): void;
   focus(): void;
+  
+  // Document Context & Data Access
+  getDocumentContext(): DocumentContextBundle;
+  getData(): DocumentContextBundle;
+  setDocumentContext(bundle: Partial<DocumentContextBundle>): boolean;
+  setData(bundle: Partial<DocumentContextBundle>): boolean;
+
+  // Version Control & Auditing
+  saveVersion(title?: string, description?: string, options?: any): VersionSnapshot;
+  saveVersionSnapshot(title?: string, description?: string, options?: any): VersionSnapshot;
+  getVersions(): VersionSnapshot[];
+  setVersions(versions: VersionSnapshot[]): VersionSnapshot[];
+  getVersion(id: string): VersionSnapshot | null;
+  deleteVersion(id: string): VersionSnapshot | null;
+  restoreVersion(id: string, options?: any): boolean;
+  compareVersions(versionIdA: string, versionIdB?: string): VersionComparisonResult;
+  getComparisonList(): ComparisonListItem[];
+  showVersionHistory(): void;
+  showVersionComparison(versionIdA?: string | null, versionIdB?: string): void;
+
+  // Comments & Suggestions
+  getComments(filter?: { resolved?: boolean }): CommentItem[];
+  setComments(comments: CommentItem[]): CommentItem[];
+  addComment(text: string): CommentItem | void;
+  replyComment(commentId: string, text: string, user?: CollabUser | null): CommentReply | null;
+  deleteCommentReply(commentId: string, replyId: string): CommentReply | boolean;
+  resolveComment(id: string, resolvedBy?: string | null): CommentItem | null;
+  deleteComment(id: string): CommentItem | boolean;
+  getSuggestions(filter?: { status?: 'pending' | 'accepted' | 'rejected' }): SuggestionItem[];
+  setSuggestions(suggestions: SuggestionItem[]): SuggestionItem[];
+  acceptSuggestion(id: string, reviewer?: CollabUser | null): SuggestionItem | null;
+  rejectSuggestion(id: string, reviewer?: CollabUser | null): SuggestionItem | null;
+
+  // User Management
+  getUsers(): CollabUser[];
+  setUsers(users: CollabUser[]): CollabUser[];
+  getUser(id: string): CollabUser | null;
+  setUser(userOrId: string | CollabUser): CollabUser;
+  addUser(name: string, color?: string | null): CollabUser;
+  getCurrentUser(): CollabUser;
+
   on(event: string, handler: Function): void;
   off(event: string, handler: Function): void;
   emit(event: string, ...args: any[]): void;
@@ -139,8 +329,12 @@ export declare class SplitView {
 
 export declare class CollabEngine {
   editor: EditorCore;
+  isConnected: boolean;
   constructor(editor: EditorCore, options?: CollabOptions);
   mount(containerEl: HTMLElement): void;
+  connect(serverUrl?: string): void;
+  disconnect(): void;
+  setUser(user: CollabUser): void;
   destroy(): void;
 }
 
@@ -151,7 +345,8 @@ export declare class SyncAdapter {
   getJSON(): any;
   exportHTML(filename?: string): void;
   exportMarkdown(filename?: string): void;
-  exportJSON(filename?: string): void;
+  exportJSON(filename?: string, fullContext?: boolean): void;
+  exportContextJSON(filename?: string): void;
   exportText(filename?: string): void;
   exportDOCX(filename?: string): void;
   destroy(): void;
@@ -160,6 +355,8 @@ export declare class SyncAdapter {
 export declare class RichEditor {
   core: EditorCore;
   toolbar: Toolbar | null;
+  collab: CollabEngine | null;
+  sync: SyncAdapter | null;
   constructor(target: string | HTMLElement, options?: RichEditorOptions);
   getHTML(): string;
   setHTML(html: string): void;
@@ -172,6 +369,53 @@ export declare class RichEditor {
   setGutterPosition(position: GutterPosition): string;
   getGutterPosition(): GutterPosition;
   toggleGutterPosition(): GutterPosition;
+  setReadOnly(readOnly?: boolean): boolean;
+  isReadOnly(): boolean;
+
+  // Complete Document Context & Data Access
+  getData(): DocumentContextBundle;
+  setData(bundle: Partial<DocumentContextBundle>): boolean;
+  getDocumentContext(): DocumentContextBundle;
+  setDocumentContext(bundle: Partial<DocumentContextBundle>): boolean;
+
+  // Version Control & Comparison
+  saveVersion(title?: string, description?: string): VersionSnapshot;
+  getVersions(): VersionSnapshot[];
+  getVersion(id: string): VersionSnapshot | null;
+  deleteVersion(id: string): VersionSnapshot | null;
+  restoreVersion(id: string, options?: any): boolean;
+  compareVersions(versionIdA: string, versionIdB?: string): VersionComparisonResult;
+  getComparisonList(): ComparisonListItem[];
+  showVersionHistory(): void;
+  showVersionComparison(versionIdA?: string | null, versionIdB?: string): void;
+
+  // Comments & Suggestions
+  getComments(filter?: { resolved?: boolean }): CommentItem[];
+  setComments(comments: CommentItem[]): CommentItem[];
+  addComment(text: string): CommentItem | void;
+  openCommentDraft(): void;
+  cancelCommentDraft(): void;
+  submitCommentDraft(text: string): void;
+  replyComment(commentId: string, text: string, user?: CollabUser | null): CommentReply | null;
+  deleteCommentReply(commentId: string, replyId: string): CommentReply | boolean;
+  resolveComment(id: string, resolvedBy?: string | null): CommentItem | null;
+  deleteComment(id: string): CommentItem | boolean;
+  clearAllAnnotations(): ClearAnnotationsAudit;
+  clearCommentsAndSuggestions(): ClearAnnotationsAudit;
+  getSuggestions(filter?: { status?: 'pending' | 'accepted' | 'rejected' }): SuggestionItem[];
+  setSuggestions(suggestions: SuggestionItem[]): SuggestionItem[];
+  acceptSuggestion(id: string, reviewer?: CollabUser | null): SuggestionItem | null;
+  rejectSuggestion(id: string, reviewer?: CollabUser | null): SuggestionItem | null;
+
+  // Users & Presence
+  getUsers(): CollabUser[];
+  setUsers(users: CollabUser[]): CollabUser[];
+  getCurrentUser(): CollabUser;
+  setUser(userOrId: string | CollabUser): CollabUser;
+  addUser(name: string, color?: string | null): CollabUser;
+  promptAddUser(): CollabUser | null;
+
+  // Toolbar
   showToolbar(): this;
   hideToolbar(): this;
   toggleToolbar(forceVisible?: boolean): this;
@@ -185,19 +429,29 @@ export declare class RichEditor {
   setToolbarDefaults(defaults: Partial<ToolbarDefaults>): ToolbarDefaults;
   getToolbarDefaults(): ToolbarDefaults;
   toggleSplitView(): void;
+
+  // Import & Export
   exportDOCX(filename?: string): void;
   exportMarkdown(filename?: string): void;
   exportHTML(filename?: string): void;
-  exportJSON(filename?: string): void;
+  exportJSON(filename?: string, fullContext?: boolean): void;
+  exportContextJSON(filename?: string): void;
   exportText(filename?: string): void;
-  importDocument(file: File | Blob): Promise<string>;
-  browseAndOpen(): Promise<{ file: File; html: string }>;
+  importDocument(file: File | Blob, options?: ImportDocumentOptions): Promise<string | null>;
+  browseAndOpen(options?: ImportDocumentOptions): Promise<{ file: File; html: string } | null>;
+
+  // Real-Time Collab
+  disconnectCollab(): void;
+  connectCollab(serverUrl?: string): void;
+  isCollabConnected(): boolean;
+
   addNewPage(): HTMLElement;
   removePage(pageNumber: number): void;
   focus(): void;
   blur(): void;
   on(event: string, fn: Function): void;
   off(event: string, fn: Function): void;
+  emit(event: string, payload?: any): void;
   destroy(): void;
 }
 

@@ -418,6 +418,14 @@ export class RichEditor {
     return this.core.setUsers(users);
   }
 
+  setReadOnly(readOnly = true) {
+    return this.core?.setReadOnly(readOnly);
+  }
+
+  isReadOnly() {
+    return Boolean(this.core?.isReadOnly());
+  }
+
   addComment(text) {
     this.core.addComment(text);
   }
@@ -434,28 +442,36 @@ export class RichEditor {
     this.core.submitCommentDraft(text);
   }
 
-  resolveComment(id) {
-    this.core.resolveComment(id);
+  resolveComment(id, resolvedBy = null) {
+    return this.core?.resolveComment(id, resolvedBy);
   }
 
   deleteComment(id) {
-    this.core.deleteComment(id);
+    return this.core?.deleteComment(id);
   }
 
-  acceptSuggestion(id) {
-    this.core.acceptSuggestion(id);
+  replyComment(commentId, text, user = null) {
+    return this.core?.replyComment(commentId, text, user);
   }
 
-  rejectSuggestion(id) {
-    this.core.rejectSuggestion(id);
+  deleteCommentReply(commentId, replyId) {
+    return this.core?.deleteCommentReply(commentId, replyId);
   }
 
-  getComments() {
-    return this.core.comments || [];
+  acceptSuggestion(id, reviewer = null) {
+    return this.core?.acceptSuggestion(id, reviewer);
   }
 
-  getSuggestions() {
-    return this.core.suggestions || [];
+  rejectSuggestion(id, reviewer = null) {
+    return this.core?.rejectSuggestion(id, reviewer);
+  }
+
+  getComments(filter = {}) {
+    return this.core?.getComments(filter) || [];
+  }
+
+  getSuggestions(filter = {}) {
+    return this.core?.getSuggestions(filter) || [];
   }
 
   saveVersion(title) {
@@ -584,13 +600,21 @@ export class RichEditor {
     return this.toolbar?.getDefaults();
   }
 
+  clearAllAnnotations() {
+    return this.core?.clearAllAnnotations();
+  }
+
+  clearCommentsAndSuggestions() {
+    return this.core?.clearAllAnnotations();
+  }
+
   // Document Import & Opening
-  async importDocument(file) {
-    const html = await this.core.importDocument(file);
+  async importDocument(file, options = {}) {
+    const html = await this.core.importDocument(file, options);
     return html;
   }
 
-  browseAndOpen() {
+  browseAndOpen(options = {}) {
     return new Promise((resolve, reject) => {
       if (typeof document === 'undefined') return reject(new Error('Browser environment required'));
       const input = document.createElement('input');
@@ -601,7 +625,7 @@ export class RichEditor {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
         try {
-          const html = await this.importDocument(file);
+          const html = await this.importDocument(file, options);
           document.body.removeChild(input);
           resolve({ file, html });
         } catch (err) {

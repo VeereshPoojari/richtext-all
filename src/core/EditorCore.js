@@ -154,6 +154,28 @@ export class EditorCore {
   }
 
   createPageSheet(pageNumber, initialHtml = '<p><br></p>') {
+    if (typeof document === 'undefined') {
+      const sanitized = sanitizeHtml(initialHtml || '<p><br></p>');
+      const text = sanitized.replace(/<[^>]+>/g, ' ').trim();
+      return {
+        className: `rta-page-sheet rta-editor rta-content-editable rta-layout-${this.options.pageLayout}`,
+        getAttribute: (attr) => attr === 'data-page-number' ? pageNumber : null,
+        setAttribute: () => {},
+        innerHTML: sanitized,
+        textContent: text,
+        innerText: text,
+        childNodes: [],
+        querySelector: (sel) => {
+          if (sel === '.rta-page-body') return { innerHTML: sanitized, textContent: text, innerText: text };
+          return null;
+        },
+        querySelectorAll: () => [],
+        appendChild: () => {},
+        remove: () => {},
+        addEventListener: () => {}
+      };
+    }
+
     const page = document.createElement('div');
     page.className = `rta-page-sheet rta-editor rta-content-editable rta-layout-${this.options.pageLayout}`;
     page.setAttribute('data-page-number', pageNumber);
@@ -320,7 +342,7 @@ export class EditorCore {
   }
 
   checkAutoPagination(targetPage = null) {
-    if (this.isPaginating) return;
+    if (this.isImporting || this.isPaginating) return;
     if (!this.pages || this.pages.length === 0) return;
 
     this.isPaginating = true;
@@ -347,8 +369,10 @@ export class EditorCore {
         return child.offsetTop || 0;
       };
 
-      for (let i = 0; i < this.pages.length; i++) {
-        const page = this.pages[i];
+      const pagesToCheck = targetPage ? [targetPage] : (this.pages.length > 25 ? (this.contentArea ? [this.contentArea] : [this.pages[0]]) : this.pages);
+
+      for (let i = 0; i < pagesToCheck.length; i++) {
+        const page = pagesToCheck[i];
         const body = page.querySelector('.rta-page-body');
         if (!body) continue;
 
@@ -402,7 +426,7 @@ export class EditorCore {
           const nextBody = nextPage.querySelector('.rta-page-body');
           if (!nextBody) continue;
 
-          const sel = window.getSelection();
+          const sel = typeof window !== 'undefined' && window.getSelection ? window.getSelection() : null;
           let caretInMoved = false;
           let caretNode = null;
           let caretOffset = 0;
@@ -768,29 +792,184 @@ export class EditorCore {
     return this.format(command, value);
   }
 
-  async importDocument(file) {
-    if (!file) throw new Error('No file provided');
-    const fileName = (file.name || '').toLowerCase();
-    if (fileName.endsWith('.json')) {
-      const text = typeof file.text === 'function' ? await file.text() : await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result);
-        reader.onerror = rej;
-        reader.readAsText(file);
-      });
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed.schemaVersion || parsed.content || parsed.versions || parsed.settings || parsed.comments) {
-          this.setDocumentContext(parsed);
-          return this.getHTML();
+  clearAllAnnotations() {
+    const deletedComments = JSON.parse(JSON.stringify(this.comments || []));
+    const deletedSuggestions = JSON.parse(JSON.stringify(this.suggestions || []));
+
+    // 1. Unwrap all comment marks in document
+    if (this.container) {
+      const commentMarks = this.container.querySelectorAll('.rta-comment-mark');
+      commentMarks.forEach(mark => {
+        const parent = mark.parentNode;
+        while (mark.firstChild) {
+          parent.insertBefore(mark.firstChild, mark);
         }
-      } catch (err) {
-        console.warn('[richtext-all] Error parsing JSON context file:', err);
+        mark.remove();
+      });
+
+      // 2. Remove / resolve suggestion marks
+      const sugMarks = this.container.querySelectorAll('.rta-suggestion-mark');
+      sugMarks.forEach(mark => {
+        const parent = mark.parentNode;
+        if (mark.classList.contains('rta-suggestion-del')) {
+          mark.remove();
+        } else {
+          while (mark.firstChild) {
+            parent.insertBefore(mark.firstChild, mark);
+          }
+          mark.remove();
+        }
+      });
+    }
+
+    this.comments = [];
+    this.suggestions = [];
+    this.activeDraftComment = null;
+
+    this.renderGutterCards();
+    this.handleInput();
+
+    const audit = {
+      deletedComments,
+      deletedSuggestions,
+      totalComments: deletedComments.length,
+      totalSuggestions: deletedSuggestions.length,
+      timestamp: new Date().toISOString()
+    };
+
+    this.emit('commentsCleared', deletedComments);
+    this.emit('suggestionsCleared', deletedSuggestions);
+    this.emit('annotationsCleared', audit);
+    this.emit('commentsChange', this.comments);
+    this.emit('suggestionsChange', this.suggestions);
+
+    return audit;
+  }
+
+  // Developer alias
+  clearCommentsAndSuggestions() {
+    return this.clearAllAnnotations();
+  }
+
+  async confirmDocumentOverwrite(file) {
+    const commentsCount = (this.comments || []).length;
+    const suggestionsCount = (this.suggestions || []).length;
+    const hasAnnotations = commentsCount > 0 || suggestionsCount > 0;
+
+    // If running in Node.js or no annotations exist, auto-proceed
+    if (typeof document === 'undefined' || !hasAnnotations) {
+      return true;
+    }
+
+    return new Promise((resolve) => {
+      let modal = document.getElementById('rta-overwrite-confirm-modal');
+      if (modal) modal.remove();
+
+      modal = document.createElement('div');
+      modal.id = 'rta-overwrite-confirm-modal';
+      modal.className = 'rta-modal-backdrop';
+      modal.innerHTML = `
+        <div class="rta-modal" style="max-width: 440px; width: 90%; border-top: 4px solid #ef4444;">
+          <div class="rta-modal-header" style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+            <h3 class="rta-modal-title" style="font-size: 15px; font-weight: 700; color: #b91c1c; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <span>⚠️</span> Replace Document & Delete Annotations?
+            </h3>
+            <button type="button" class="rta-modal-close" style="font-size: 18px; cursor: pointer; border: none; background: none; color: #64748b;" id="rta-btn-overwrite-close">✕</button>
+          </div>
+          <div class="rta-modal-body" style="padding: 18px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #334155; line-height: 1.5;">
+            <p style="margin: 0;">
+              Opening <strong>${escapeHtml(file.name || 'new document')}</strong> will replace your current document content.
+            </p>
+            <div style="background: #fef2f2; border: 1px solid #fee2e2; border-radius: 6px; padding: 10px 12px; font-size: 12.5px; color: #991b1b;">
+              ⚠️ <strong>Warning:</strong> All existing <strong>${commentsCount} comment(s)</strong> and <strong>${suggestionsCount} suggestion(s)</strong> will be <strong>permanently deleted</strong>.
+            </div>
+            <p style="margin: 0; font-size: 12px; color: #64748b;">
+              Do you want to proceed and delete all existing comments and suggestions, or cancel to keep your current document?
+            </p>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+              <button type="button" id="rta-btn-overwrite-cancel" style="padding: 7px 14px; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; color: #475569; font-size: 12.5px; font-weight: 500; cursor: pointer;">
+                Cancel (Keep Current)
+              </button>
+              <button type="button" id="rta-btn-overwrite-confirm" style="padding: 7px 16px; border: none; border-radius: 6px; background: #ef4444; color: #ffffff; font-size: 12.5px; font-weight: 600; cursor: pointer;">
+                Delete All & Open
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      const cleanup = (confirmed) => {
+        modal.remove();
+        resolve(confirmed);
+      };
+
+      modal.querySelector('#rta-btn-overwrite-cancel')?.addEventListener('click', () => cleanup(false));
+      modal.querySelector('#rta-btn-overwrite-close')?.addEventListener('click', () => cleanup(false));
+      modal.querySelector('#rta-btn-overwrite-confirm')?.addEventListener('click', () => cleanup(true));
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) cleanup(false);
+      });
+    });
+  }
+
+  async importDocument(file, options = {}) {
+    if (!file) throw new Error('No file provided');
+
+    const confirmRequired = options.confirmOnOverwrite !== false;
+    if (confirmRequired) {
+      let confirmed = true;
+      if (typeof options.onConfirmOverwrite === 'function') {
+        confirmed = await options.onConfirmOverwrite({
+          file,
+          commentsCount: (this.comments || []).length,
+          suggestionsCount: (this.suggestions || []).length,
+          comments: [...this.comments],
+          suggestions: [...this.suggestions]
+        });
+      } else {
+        confirmed = await this.confirmDocumentOverwrite(file);
+      }
+
+      if (!confirmed) {
+        this.emit('importCancelled', { file });
+        return null;
       }
     }
-    const html = await readDocumentFile(file);
-    this.setHTML(html);
-    return html;
+
+    // Capture and permanently clear existing annotations
+    const deletedAnnotations = this.clearAllAnnotations();
+
+    this.isImporting = true;
+    try {
+      const fileName = (file.name || '').toLowerCase();
+      if (fileName.endsWith('.json')) {
+        const text = typeof file.text === 'function' ? await file.text() : await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result);
+          reader.onerror = rej;
+          reader.readAsText(file);
+        });
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed.schemaVersion || parsed.content || parsed.versions || parsed.settings || parsed.comments) {
+            this.setDocumentContext(parsed);
+            this.emit('documentImported', { file, deletedAnnotations });
+            return this.getHTML();
+          }
+        } catch (err) {
+          console.warn('[richtext-all] Error parsing JSON context file:', err);
+        }
+      }
+      const html = await readDocumentFile(file);
+      this.setHTML(html);
+      this.emit('documentImported', { file, html, deletedAnnotations });
+      return html;
+    } finally {
+      this.isImporting = false;
+      this.updateGutterPositions();
+    }
   }
 
   format(command, value = null) {
@@ -1219,7 +1398,31 @@ export class EditorCore {
           this.submitCommentDraft(textarea?.value);
         } else if (action === 'cancelDraftComment') {
           this.cancelCommentDraft();
+        } else if (action === 'replyComment') {
+          const commentId = btn.getAttribute('data-comment-id') || id;
+          const input = card.querySelector(`.rta-reply-input[data-comment-id="${commentId}"]`) || card.querySelector('.rta-reply-input');
+          if (input && input.value.trim()) {
+            this.replyComment(commentId, input.value.trim());
+            input.value = '';
+          }
+        } else if (action === 'deleteCommentReply') {
+          const commentId = btn.getAttribute('data-comment-id');
+          const replyId = btn.getAttribute('data-reply-id');
+          if (commentId && replyId) {
+            this.deleteCommentReply(commentId, replyId);
+          }
+        } else if (action === 'toggleRepliesGroup') {
+          const group = card.querySelector('.rta-comment-replies-group');
+          if (group) group.classList.toggle('is-extended');
         }
+        return;
+      }
+
+      // Clicking reply group header toggles extended state
+      const groupHeader = e.target.closest('.rta-replies-group-header');
+      if (groupHeader) {
+        const group = groupHeader.closest('.rta-comment-replies-group');
+        if (group) group.classList.toggle('is-extended');
         return;
       }
 
@@ -1231,7 +1434,15 @@ export class EditorCore {
       }
     });
 
-    // Keyboard support in draft comment textarea
+    // Auto-extend replies group when typing reply
+    gutterEl.addEventListener('focusin', (e) => {
+      if (e.target.matches('.rta-reply-input')) {
+        const group = e.target.closest('.rta-gutter-card')?.querySelector('.rta-comment-replies-group');
+        if (group) group.classList.add('is-extended');
+      }
+    });
+
+    // Keyboard support in draft comment textarea and reply input
     gutterEl.addEventListener('keydown', (e) => {
       if (e.target.matches('.rta-card-textarea')) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -1240,6 +1451,15 @@ export class EditorCore {
         } else if (e.key === 'Escape') {
           e.preventDefault();
           this.cancelCommentDraft();
+        }
+      } else if (e.target.matches('.rta-reply-input')) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const commentId = e.target.getAttribute('data-comment-id');
+          if (commentId && e.target.value.trim()) {
+            this.replyComment(commentId, e.target.value.trim());
+            e.target.value = '';
+          }
         }
       }
     });
@@ -1353,7 +1573,7 @@ export class EditorCore {
     }
 
     const draftId = this.activeDraftComment.id;
-    const permId = 'c-' + Date.now();
+    const permId = 'c-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
     const mark = this.container?.querySelector(`.rta-comment-mark[data-id="${draftId}"]`);
     if (mark) {
       mark.classList.remove('rta-comment-mark-draft');
@@ -1382,19 +1602,22 @@ export class EditorCore {
 
   addComment(text) {
     if (!text || !text.trim()) return;
-    const sel = window.getSelection();
+    const sel = typeof window !== 'undefined' && window.getSelection ? window.getSelection() : null;
     const quote = sel && sel.toString().trim() ? sel.toString().trim() : 'Document Selection';
-    const id = 'c-' + Date.now();
+    const id = 'c-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
     const comment = {
       id,
       text: text.trim(),
       quote,
       author: this.options.user?.name || 'Author',
       authorColor: this.options.user?.color || '#2563eb',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      authorId: this.options.user?.id || 'usr-default',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      resolved: false,
+      replies: []
     };
 
-    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+    if (typeof document !== 'undefined' && sel && sel.rangeCount > 0 && !sel.isCollapsed) {
       const range = sel.getRangeAt(0);
       const mark = document.createElement('mark');
       mark.className = 'rta-comment-mark';
@@ -1411,9 +1634,51 @@ export class EditorCore {
     this.handleInput();
     this.emit('commentAdded', comment);
     this.emit('commentsChange', this.comments);
+    return comment;
   }
 
-  resolveComment(id) {
+  replyComment(commentId, text, user = null) {
+    if (!commentId || !text || !text.trim()) return null;
+    const comment = this.comments.find(c => c.id === commentId);
+    if (!comment) return null;
+
+    if (!Array.isArray(comment.replies)) {
+      comment.replies = [];
+    }
+
+    const replyUser = user || this.options.user || { id: 'usr-default', name: 'Author', color: '#6366f1' };
+    const reply = {
+      id: 'rep-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      text: text.trim(),
+      author: replyUser.name || 'Author',
+      authorId: replyUser.id || 'usr-default',
+      authorColor: replyUser.color || '#6366f1',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString()
+    };
+
+    comment.replies.push(reply);
+    this.renderGutterCards();
+    this.handleInput();
+    this.emit('commentReplied', { commentId, reply, comment });
+    this.emit('commentsChange', this.comments);
+    return reply;
+  }
+
+  deleteCommentReply(commentId, replyId) {
+    const comment = this.comments.find(c => c.id === commentId);
+    if (!comment || !Array.isArray(comment.replies)) return false;
+    const idx = comment.replies.findIndex(r => r.id === replyId);
+    if (idx === -1) return false;
+    const [removed] = comment.replies.splice(idx, 1);
+    this.renderGutterCards();
+    this.handleInput();
+    this.emit('commentReplyDeleted', { commentId, replyId, removed });
+    this.emit('commentsChange', this.comments);
+    return removed;
+  }
+
+  resolveComment(id, resolvedBy = null) {
     const mark = this.container?.querySelector(`.rta-comment-mark[data-id="${id}"]`);
     if (mark) {
       const parent = mark.parentNode;
@@ -1422,23 +1687,54 @@ export class EditorCore {
       }
       mark.remove();
     }
-    this.comments = this.comments.filter(c => c.id !== id);
+    const comment = this.comments.find(c => c.id === id);
+    if (comment) {
+      comment.resolved = true;
+      comment.resolvedBy = resolvedBy || this.options.user?.name || 'Author';
+      comment.resolvedAt = new Date().toISOString();
+    }
     this.renderGutterCards();
     this.handleInput();
-    this.emit('commentResolved', id);
+    this.emit('commentResolved', { id, comment });
     this.emit('commentsChange', this.comments);
+    return comment;
   }
 
   deleteComment(id) {
-    this.resolveComment(id);
+    const mark = this.container?.querySelector(`.rta-comment-mark[data-id="${id}"]`);
+    if (mark) {
+      const parent = mark.parentNode;
+      while (mark.firstChild) {
+        parent.insertBefore(mark.firstChild, mark);
+      }
+      mark.remove();
+    }
+    const idx = this.comments.findIndex(c => c.id === id);
+    if (idx !== -1) {
+      const [removed] = this.comments.splice(idx, 1);
+      this.renderGutterCards();
+      this.handleInput();
+      this.emit('commentDeleted', removed);
+      this.emit('commentsChange', this.comments);
+      return removed;
+    }
+    return false;
   }
 
-  acceptSuggestion(id) {
-    const itemIndex = this.suggestions.findIndex(s => s.id === id);
-    if (itemIndex === -1) return;
-    const sug = this.suggestions[itemIndex];
-    const el = this.container?.querySelector(`[data-id="${id}"]`);
+  acceptSuggestion(id, reviewer = null) {
+    const sug = this.suggestions.find(s => s.id === id);
+    if (!sug) return null;
 
+    const revUser = reviewer || this.options.user || { id: 'usr-default', name: 'Author' };
+    sug.status = 'accepted';
+    sug.reviewedBy = {
+      id: revUser.id || 'usr-default',
+      name: revUser.name || 'Author',
+      color: revUser.color || '#16a34a'
+    };
+    sug.reviewedAt = new Date().toISOString();
+
+    const el = this.container?.querySelector(`[data-id="${id}"]`);
     if (el) {
       if (sug.type === 'add') {
         const parent = el.parentNode;
@@ -1451,18 +1747,27 @@ export class EditorCore {
       }
     }
 
-    this.suggestions.splice(itemIndex, 1);
     this.renderGutterCards();
     this.handleInput();
     this.emit('suggestionAccepted', sug);
+    this.emit('suggestionsChange', this.suggestions);
+    return sug;
   }
 
-  rejectSuggestion(id) {
-    const itemIndex = this.suggestions.findIndex(s => s.id === id);
-    if (itemIndex === -1) return;
-    const sug = this.suggestions[itemIndex];
-    const el = this.container?.querySelector(`[data-id="${id}"]`);
+  rejectSuggestion(id, reviewer = null) {
+    const sug = this.suggestions.find(s => s.id === id);
+    if (!sug) return null;
 
+    const revUser = reviewer || this.options.user || { id: 'usr-default', name: 'Author' };
+    sug.status = 'rejected';
+    sug.reviewedBy = {
+      id: revUser.id || 'usr-default',
+      name: revUser.name || 'Author',
+      color: revUser.color || '#dc2626'
+    };
+    sug.reviewedAt = new Date().toISOString();
+
+    const el = this.container?.querySelector(`[data-id="${id}"]`);
     if (el) {
       if (sug.type === 'add') {
         el.remove();
@@ -1475,17 +1780,19 @@ export class EditorCore {
       }
     }
 
-    this.suggestions.splice(itemIndex, 1);
     this.renderGutterCards();
     this.handleInput();
     this.emit('suggestionRejected', sug);
+    this.emit('suggestionsChange', this.suggestions);
+    return sug;
   }
 
   renderGutterCards() {
     const cardsList = [];
 
-    // 1. Suggestions Cards
-    this.suggestions.forEach(sug => {
+    // 1. Suggestions Cards (only show pending)
+    const pendingSuggestions = this.suggestions.filter(sug => !sug.status || sug.status === 'pending');
+    pendingSuggestions.forEach(sug => {
       const initial = (sug.author || 'A').charAt(0).toUpperCase();
       const color = sug.authorColor || (sug.type === 'add' ? '#16a34a' : '#dc2626');
       const badgeClass = sug.type === 'add' ? 'rta-badge-add' : 'rta-badge-del';
@@ -1517,10 +1824,12 @@ export class EditorCore {
       });
     });
 
-    // 2. Comments Cards
-    this.comments.forEach(c => {
+    // 2. Comments Cards (only show active/unresolved)
+    const activeComments = this.comments.filter(c => !c.resolved);
+    activeComments.forEach(c => {
       const initial = (c.author || 'A').charAt(0).toUpperCase();
       const color = c.authorColor || '#2563eb';
+      const replies = Array.isArray(c.replies) ? c.replies : [];
 
       cardsList.push({
         id: c.id,
@@ -1531,13 +1840,48 @@ export class EditorCore {
               <span class="rta-card-avatar" style="background-color: ${color}">${initial}</span>
               <div class="rta-card-user-info">
                 <span class="rta-card-author">${escapeHtml(c.author)}</span>
-                <span class="rta-card-time">${c.timestamp}</span>
+                <span class="rta-card-time">${c.timestamp || ''}</span>
               </div>
             </div>
             <span class="rta-card-badge rta-badge-comment">💬 Comment</span>
           </div>
           ${c.quote ? `<div class="rta-card-quote">“${escapeHtml(c.quote)}”</div>` : ''}
           <div class="rta-card-body-text">${escapeHtml(c.text)}</div>
+
+          ${replies.length > 0 ? `
+            <div class="rta-comment-replies-group" data-comment-id="${c.id}" tabindex="0">
+              <div class="rta-replies-group-header" data-action="toggleRepliesGroup" data-comment-id="${c.id}" title="Hover or click to extend thread">
+                <div class="rta-replies-group-avatars">
+                  ${replies.slice(-3).map(r => `
+                    <span class="rta-reply-group-avatar" style="background-color: ${r.authorColor || '#6366f1'}">${(r.author || 'A').charAt(0).toUpperCase()}</span>
+                  `).join('')}
+                </div>
+                <span class="rta-replies-count-badge">💬 ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}</span>
+                <span class="rta-replies-expand-hint">Hover to extend ▾</span>
+              </div>
+              <div class="rta-replies-group-drawer">
+                <div class="rta-comment-replies">
+                  ${replies.map(r => `
+                    <div class="rta-comment-reply-item">
+                      <div class="rta-reply-header">
+                        <span class="rta-card-avatar rta-reply-avatar" style="background-color: ${r.authorColor || '#6366f1'}">${(r.author || 'A').charAt(0).toUpperCase()}</span>
+                        <span class="rta-reply-author">${escapeHtml(r.author)}</span>
+                        <span class="rta-reply-time">${r.timestamp || ''}</span>
+                        <button type="button" class="rta-btn-del-reply" data-action="deleteCommentReply" data-comment-id="${c.id}" data-reply-id="${r.id}" title="Delete reply">✕</button>
+                      </div>
+                      <div class="rta-reply-body">${escapeHtml(r.text)}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="rta-comment-reply-row">
+            <input type="text" class="rta-reply-input" placeholder="Reply..." data-comment-id="${c.id}" />
+            <button type="button" class="rta-btn-card-reply" data-action="replyComment" data-comment-id="${c.id}">Reply</button>
+          </div>
+
           <div class="rta-card-actions">
             <button type="button" class="rta-btn-card-resolve" data-action="resolveComment" data-id="${c.id}" title="Resolve comment">✓ Resolve</button>
             <button type="button" class="rta-btn-card-delete" data-action="deleteComment" data-id="${c.id}" title="Delete comment">🗑️</button>
@@ -2146,7 +2490,11 @@ export class EditorCore {
     return this.setDocumentContext(bundle);
   }
 
-  getComments() {
+  getComments(filter = {}) {
+    if (filter && typeof filter === 'object') {
+      if (filter.resolved === true) return this.comments.filter(c => Boolean(c.resolved));
+      if (filter.resolved === false) return this.comments.filter(c => !c.resolved);
+    }
     return [...this.comments];
   }
 
@@ -2158,7 +2506,10 @@ export class EditorCore {
     return this.comments;
   }
 
-  getSuggestions() {
+  getSuggestions(filter = {}) {
+    if (filter && typeof filter === 'object' && filter.status) {
+      return this.suggestions.filter(s => (s.status || 'pending') === filter.status);
+    }
     return [...this.suggestions];
   }
 
@@ -2179,6 +2530,23 @@ export class EditorCore {
     this.users = JSON.parse(JSON.stringify(users));
     this.emit('usersChange', this.users);
     return this.users;
+  }
+
+  setReadOnly(readOnly = true) {
+    this.options.readOnly = Boolean(readOnly);
+    if (Array.isArray(this.pages)) {
+      this.pages.forEach(page => {
+        page.contentEditable = !this.options.readOnly;
+      });
+    } else if (this.el) {
+      this.el.contentEditable = !this.options.readOnly;
+    }
+    this.emit('readOnlyChange', this.options.readOnly);
+    return this.options.readOnly;
+  }
+
+  isReadOnly() {
+    return Boolean(this.options.readOnly);
   }
 
   toggleVersionHistoryModal() {
@@ -2867,21 +3235,27 @@ export class EditorCore {
       return;
     }
 
-    if (cleanHtml.includes('rta-page-break-print')) {
-      const parts = cleanHtml.split(/<div class="rta-page-break-print"[^>]*><\/div>/i);
+    if (cleanHtml.includes('rta-page-break-print') || cleanHtml.includes('rta-page-break')) {
+      const parts = cleanHtml.split(/<div class="rta-page-break(?:-print)?"[^>]*><\/div>/i);
       while (this.pages.length > 1) {
         this.pages.pop().remove();
       }
-      const firstBody = this.pages[0]?.querySelector('.rta-page-body');
-      if (firstBody) firstBody.innerHTML = parts[0];
-      else if (this.pages[0]) this.pages[0].innerHTML = parts[0];
 
-      for (let i = 1; i < parts.length; i++) {
-        if (parts[i].trim()) {
-          const p = this.createPageSheet(this.pages.length + 1, parts[i]);
-          this.pages.push(p);
-          this.pagesContainer.appendChild(p);
+      const firstBody = this.pages[0]?.querySelector('.rta-page-body');
+      if (firstBody) firstBody.innerHTML = parts[0] || '<p><br></p>';
+      else if (this.pages[0]) this.pages[0].innerHTML = parts[0] || '<p><br></p>';
+
+      if (parts.length > 1 && this.pagesContainer) {
+        const frag = typeof document !== 'undefined' && document.createDocumentFragment ? document.createDocumentFragment() : null;
+        for (let i = 1; i < parts.length; i++) {
+          if (parts[i].trim()) {
+            const p = this.createPageSheet(this.pages.length + 1, parts[i]);
+            this.pages.push(p);
+            if (frag) frag.appendChild(p);
+            else this.pagesContainer.appendChild(p);
+          }
         }
+        if (frag) this.pagesContainer.appendChild(frag);
       }
     } else {
       while (this.pages.length > 1) {
@@ -2910,7 +3284,7 @@ export class EditorCore {
       if (body) {
         const bodyText = (body.innerText || body.textContent || '').trim();
         let extraText = '';
-        Array.from(page.childNodes).forEach(node => {
+        Array.from(page.childNodes || []).forEach(node => {
           if (node !== header && node !== body) {
             extraText += ' ' + (node.innerText || node.textContent || '');
           }
